@@ -1,0 +1,8 @@
+# OSX generated files #
+######################
+.DS_Store*
+ehthumbs.db
+Thumbs.db
+._*
+.Spotlight-V100
+.Trashes
