@@ -1,8 +1,8 @@
-WEB_APP_FOLDER_PATH = "/home/vagrant/web/ete2/webplugin/wsgi"
-TMP_DIR_PATH = "/home/vagrant/web/ete2/webplugin/tmp"
-TMP_WEB_RELATIVE_PATH = "/webplugin/tmp/"
-
+#!/usr/bin/python
 import sys, os, re, cgi, time
+
+#settings.py
+from settings import *
 
 #Configure path accordingly
 sys.path.insert(0, WEB_APP_FOLDER_PATH)
@@ -10,6 +10,8 @@ sys.path.insert(0, WEB_APP_FOLDER_PATH)
 #python
 from string import strip
 from hashlib import md5
+import _mysql
+import wsgiref.handlers
 
 #ete2
 from ete2 import WebTreeApplication, PhyloTree, faces, Tree
@@ -34,7 +36,7 @@ def webplugin_app(environ, start_response, queries):
     if not treeid:
         treeid = md5(str(time.time())).hexdigest()
 
-    start_response('202 OK', [('content-type', 'text/plain')])
+    #start_response('202 OK', [('content-type', 'text/plain')])
 
     # asked_methods are overriden by the base functions found in WebTreeApplication
     # (ex : catching "draw" here will not be executed)
@@ -401,7 +403,7 @@ def tree_renderer(tree, treeid, application):
     formated_features =  {
             # feature_name: ["Description", face column position, text_size, color, text_prefix, text_suffix ]
 
-            #"name": ["Leaf name", len(leaves), 0, 12, "#000000", "", ""],
+            #"name": ["leaf name", len(leaves), 0, 12, "#000000", "", ""],
             "spname": ["Species name", len(leaves), 1, 12, "#f00000", " Species:", ""],
             }
 
@@ -431,9 +433,9 @@ def tree_renderer(tree, treeid, application):
     html_features = '''
       <div id="tree_features_box">
       <div class="tree_box_header">Available tree features
-      <img src="/webplugin/close.png" onclick='$(this).closest("#tree_features_box").hide();'>
+      <img src="webplugin/close.png" onclick='$(this).closest("#tree_features_box").hide();'>
       </div>
-      <form action='javascript: set_tree_features("", "", "");'>
+      <form id="form_tree_features" action='javascript: set_tree_features("", "", "");'>
 
       '''
 
@@ -463,24 +465,24 @@ def tree_renderer(tree, treeid, application):
 
     features_button = '''
      <li><a href="javascript:;" onclick='show_box(event, $(this).closest("#tree_panel").children("#tree_features_box"));'>
-     <img width=16 height=16 src="/webplugin/icon_tools.png" alt="Select Tree features">
+     <img width=16 height=16 src="webplugin/icon_tools.png" alt="Select Tree features">
      </a></li>'''
 
     download_button = '''
-     <li><a href="/webplugin/tmp/%s.png" target="_blank">
-     <img width=16 height=16 src="/webplugin/icon_attachment.png" alt="Download tree image">
+     <li><a href="webplugin/tmp/%s.png" target="_blank">
+     <img width=16 height=16 src="webplugin/icon_attachment.png" alt="Download tree image">
      </a></li>''' %(treeid)
 
     search_button = '''
       <li><a href="javascript:;" onclick='javascript:
           var box = $(this).closest("#tree_panel").children("#search_in_tree_box");
           show_box(event, box); '>
-      <img width=16 height=16 src="/webplugin/icon_search.png" alt="Search in tree">
+      <img width=16 height=16 src="webplugin/icon_search.png" alt="Search in tree">
       </a></li>'''
 
     clean_search_button = '''
       <li><a href="javascript:;" onclick='run_action("%s", "", %s, "clean::clean");'>
-      <img width=16 height=16 src="/webplugin/icon_cancel_search.png" alt="Clear search results">
+      <img width=16 height=16 src="webplugin/icon_cancel_search.png" alt="Clear search results">
       </a></li>''' %\
               (treeid, 0)
 
@@ -511,7 +513,7 @@ def tree_renderer(tree, treeid, application):
     search_form = '''
      <div id="search_in_tree_box">
      <div class="tree_box_header"> Search in Tree
-     <img src="/webplugin/close.png" onclick='$(this).closest("#search_in_tree_box").hide();'>
+     <img src="webplugin/close.png" onclick='$(this).closest("#search_in_tree_box").hide();'>
      </div>
      <form onsubmit='javascript:
                      search_in_tree("%s", "%s",
@@ -553,98 +555,100 @@ def tree_renderer(tree, treeid, application):
 # Main WSGI Application
 #
 # ==============================================================================
+if __name__ == '__main__':
 
-# Create a basic ETE WebTreeApplication
-application = WebTreeApplication()
+	# Create a basic ETE WebTreeApplication
+	application = WebTreeApplication()
 
-# Set your temporal dir to allow web user to generate files. This two
-# paths should point to the same place, one using the absolute path in
-# your system, and the other the URL to access the same
-# directory. Note that the referred directory must be writable by the
-# webserver.
-application.CONFIG["temp_dir"] = TMP_DIR_PATH
-application.CONFIG["temp_url"] = TMP_WEB_RELATIVE_PATH # Relative to web site Document Root
+	# Set your temporal dir to allow web user to generate files. This two
+	# paths should point to the same place, one using the absolute path in
+	# your system, and the other the URL to access the same
+	# directory. Note that the referred directory must be writable by the
+	# webserver.
+	application.CONFIG["temp_dir"] = TMP_DIR_PATH
+	application.CONFIG["temp_url"] = TMP_WEB_RELATIVE_PATH # Relative to web site Document Root
 
 
-# Set the DISPLAY port that ETE should use to draw pictures. You will
-# need a X server installed in your server and allow webserver user to
-# access the display. If the X server is started by a different user
-# and www-data (usally the apache user) cannot access display, try
-# modifiying DISPLAY permisions by executing "xhost +"
-# Alternatively, use pyvirtualdisplay for headless X (as used here).
-application.CONFIG["DISPLAY"] = str(xvfb.new_display_var)
+	# Set the DISPLAY port that ETE should use to draw pictures. You will
+	# need a X server installed in your server and allow webserver user to
+	# access the display. If the X server is started by a different user
+	# and www-data (usally the apache user) cannot access display, try
+	# modifiying DISPLAY permisions by executing "xhost +"
+	# Alternatively, use pyvirtualdisplay for headless X (as used here).
+	application.CONFIG["DISPLAY"] = str(xvfb.new_display_var)
 
-# We extend the minimum WebTreeApplication with our own WSGI
-# application
-application.set_external_app_handler(webplugin_app)
+	# We extend the minimum WebTreeApplication with our own WSGI
+	# application
+	application.set_external_app_handler(webplugin_app)
 
-# Lets now apply our custom tree loader function to the main
-# application
-application.set_tree_loader(my_tree_loader)
+	# Lets now apply our custom tree loader function to the main
+	# application
+	application.set_tree_loader(my_tree_loader)
 
-# And our layout as the default one to render trees
-application.set_default_layout_fn(main_layout)
+	# And our layout as the default one to render trees
+	application.set_default_layout_fn(main_layout)
 
-# I want to make up how tree image in shown using a custrom tree
-# renderer that adds much more HTML code
-application.set_external_tree_renderer(tree_renderer)
+	# I want to make up how tree image in shown using a custrom tree
+	# renderer that adds much more HTML code
+	application.set_external_tree_renderer(tree_renderer)
 
-# ==============================================================================
-# ADD CUSTOM ACTIONS TO THE APPLICATION
-#
-# The function "register_action" allows to attach functionality to
-# nodes in the image. All registered accions will be shown in the
-# popup menu bound to the nodes and faces in the web image.
-#
-#
-# register_action(action_name, target_type=["node"|"face"|"layout"|"search"], \
-        #                 action_handler, action_checker, html_generator_handler)
-#
-# When the Application is executed it will read your registered
-# acctions and will do the following:
-#
-# 1. Load the tree and get the image map
-#
-# 2. For each node and face in the tree, it will browse all registered
-# actions and will run the action_checker function to determine if the
-# action must be activated for such node or face
-#
-# 3. If action_checker(node) returns True, the action will be attached
-# to the context menu of that specific node or face, otherwise it will
-# be hidden.
-#
-# 4. When a click is done on a specific node, popup menus will be
-# built using their active actions. For this, ETE will use the
-# html_generator function associated to each function if
-# available. Otherwise, a popup entry will be added automatically.
-#
-# 5. When a certain action is pressed in the popup menus, the
-# action_handler function attached to the action will be executed over
-# its corresponding node, and the tree image will be refreshed.
-#
-# Special values:
-#
-#  action_checker = None : It will be interpreted as "Show allways"
-#  html_generator = None : Autogenerate html and link to action
-#  action_handler = None : Action will be ignored
-#
-# ==============================================================================
+	# ==============================================================================
+	# ADD CUSTOM ACTIONS TO THE APPLICATION
+	#
+	# The function "register_action" allows to attach functionality to
+	# nodes in the image. All registered accions will be shown in the
+	# popup menu bound to the nodes and faces in the web image.
+	#
+	#
+	# register_action(action_name, target_type=["node"|"face"|"layout"|"search"], \
+		#                 action_handler, action_checker, html_generator_handler)
+	#
+	# When the Application is executed it will read your registered
+	# acctions and will do the following:
+	#
+	# 1. Load the tree and get the image map
+	#
+	# 2. For each node and face in the tree, it will browse all registered
+	# actions and will run the action_checker function to determine if the
+	# action must be activated for such node or face
+	#
+	# 3. If action_checker(node) returns True, the action will be attached
+	# to the context menu of that specific node or face, otherwise it will
+	# be hidden.
+	#
+	# 4. When a click is done on a specific node, popup menus will be
+	# built using their active actions. For this, ETE will use the
+	# html_generator function associated to each function if
+	# available. Otherwise, a popup entry will be added automatically.
+	#
+	# 5. When a certain action is pressed in the popup menus, the
+	# action_handler function attached to the action will be executed over
+	# its corresponding node, and the tree image will be refreshed.
+	#
+	# Special values:
+	#
+	#  action_checker = None : It will be interpreted as "Show allways"
+	#  html_generator = None : Autogenerate html and link to action
+	#  action_handler = None : Action will be ignored
+	#
+	# ==============================================================================
 
-# We first register the special action "search" which is attached to
-# our custom search function.
-application.register_action("", "search", search_by_feature, None, None)
+	# We first register the special action "search" which is attached to
+	# our custom search function.
+	application.register_action("", "search", search_by_feature, None, None)
 
-# Node manipulation options (bound to node items and all their faces)
-application.register_action("branch_info", "node", None, None, branch_info)
-#application.register_action("<b>Collapse</b>", "node", collapse, can_collapse, None)
-#application.register_action("Expand", "node", expand, can_expand, None)
-application.register_action("Highlight background", "node", set_bg, None, None)
-#application.register_action("Set as root", "node", set_as_root, None, None)
-application.register_action("Swap children", "node", swap_branches, is_not_leaf, None)
-#application.register_action("Pay me a compliment", "face", set_red, None, None)
+	# Node manipulation options (bound to node items and all their faces)
+	application.register_action("branch_info", "node", None, None, branch_info)
+	#application.register_action("<b>Collapse</b>", "node", collapse, can_collapse, None)
+	#application.register_action("Expand", "node", expand, can_expand, None)
+	application.register_action("Highlight background", "node", set_bg, None, None)
+	#application.register_action("Set as root", "node", set_as_root, None, None)
+	application.register_action("Swap children", "node", swap_branches, is_not_leaf, None)
+	#application.register_action("Pay me a compliment", "face", set_red, None, None)
 
-# Actions attached to node's content (shown as text faces)
-#application.register_action("divider", "face", None, None, external_links_divider)
+	# Actions attached to node's content (shown as text faces)
+	#application.register_action("divider", "face", None, None, external_links_divider)
 
-#application.register_action("Default layout", "layout", main_layout, None, None)
-#application.register_action("Clean layout", "layout", main_layout, None, None)
+	#application.register_action("Default layout", "layout", main_layout, None, None)
+	#application.register_action("Clean layout", "layout", main_layout, None, None)
+	wsgiref.handlers.CGIHandler().run(application)
