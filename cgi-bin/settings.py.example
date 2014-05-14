@@ -1,0 +1,3 @@
+WEB_APP_FOLDER_PATH = "/path/to/webapp"
+TMP_DIR_PATH = "/path/to/tmp/dir"
+TMP_WEB_RELATIVE_PATH = "path/to/tmp/relative/to/web/root"

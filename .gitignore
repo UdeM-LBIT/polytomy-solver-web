@@ -10,3 +10,9 @@ Thumbs.db
 # Python #
 ##########
 *.py[cod]
+
+# Project #
+###########
+a
+cgi-bin/settings.py
+
