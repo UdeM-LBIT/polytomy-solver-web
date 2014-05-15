@@ -86,14 +86,14 @@ def webplugin_app(environ, start_response, queries):
         return application._custom_tree_renderer(t, treeid, application)
 
     else:
-        return "Nothing here. Move along..."
+        return "Nothing to see here. Move along..."
 
 
 # ==============================================================================
 # TREE LOADER
 #
 # This is my tree loading functions. I want the WebTreeApplication to
-# is this method to load the trees
+# use this method to load the trees
 # ==============================================================================
 
 # Custom Tree loader
@@ -165,7 +165,6 @@ def main_layout(node):
         if node.type == 2:
             node.img_style["fgcolor"] = "#1A1A1A"
         elif node.type == 1:
-            #node.img_style["fgcolor"] = "#1d176e"
             node.img_style["fgcolor"] = "#3F9933"
             node.img_style["size"] = 12
             node.img_style["hz_line_type"] = 0
@@ -180,7 +179,6 @@ def main_layout(node):
             node.img_style["hz_line_color"] = "#FF0000"
             node.img_style["hz_line_type"] = 1
             node.img_style["vt_line_type"] = 1
-            #node.add_feature("bgcolor", "#777777")
 
     # If no evolutionary information, set a default style
     else:
@@ -248,11 +246,6 @@ def expand(node):
 
 def swap_branches(node):
     node.children.reverse()
-
-def set_red(node):
-    node.add_feature("fgcolor", "#ff0000")
-    node.add_feature("bsize", 40)
-    node.add_feature("shape", "sphere")
 
 def set_bg(node):
     node.add_feature("bgcolor", "#CEDBC4")
@@ -644,11 +637,11 @@ if __name__ == '__main__':
 	application.register_action("Highlight background", "node", set_bg, None, None)
 	#application.register_action("Set as root", "node", set_as_root, None, None)
 	application.register_action("Swap children", "node", swap_branches, is_not_leaf, None)
-	#application.register_action("Pay me a compliment", "face", set_red, None, None)
 
 	# Actions attached to node's content (shown as text faces)
 	#application.register_action("divider", "face", None, None, external_links_divider)
 
 	#application.register_action("Default layout", "layout", main_layout, None, None)
 	#application.register_action("Clean layout", "layout", main_layout, None, None)
+	
 	wsgiref.handlers.CGIHandler().run(application)
