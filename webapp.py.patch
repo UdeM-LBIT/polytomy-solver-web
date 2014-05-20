@@ -1,19 +1,20 @@
---- ete2-2.2rev1060/webplugin/webapp.py	2014-05-15 12:05:24.018790406 -0400
-+++ cgi-bin/ete2/webplugin/webapp.py	2014-05-15 12:05:23.379762268 -0400
+--- webapp.py	2014-05-20 14:42:46.000000000 -0400
++++ webplugin/webapp.py	2014-05-20 14:42:23.000000000 -0400
 @@ -56,7 +56,7 @@
      def __init__(self):
          # Redirects normal output msgs to stderr, since stdout in web
          # application is for the browser
--        sys.stdout = sys.stderr 
-+        #sys.stdout = sys.stderr 
- 
+-        sys.stdout = sys.stderr
++        #sys.stdout = sys.stderr
+
          self.TreeConstructor = None
          self.NODE_TARGET_ACTIONS = ["node", "face"]
-@@ -174,6 +174,7 @@
+@@ -173,7 +173,7 @@
+     def _load_tree_from_path(self, pkl_path):
          tree_path = os.path.join(self.CONFIG["temp_dir"], pkl_path)
          if os.path.exists(tree_path):
-             print cPickle.load(open(tree_path))
-+	     treeid = pkl_path[:-4]
+-            print cPickle.load(open(tree_path))
++	    treeid = pkl_path[:-4]
              t = self._treeid2tree[treeid] = cPickle.load(open(tree_path))
              self._load_tree_index(treeid)
              return True

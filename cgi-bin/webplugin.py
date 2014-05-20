@@ -60,7 +60,10 @@ def webplugin_app(environ, start_response, queries):
 
         #ensemblSpTree = TreeUtils.fetch_ensembl_genetree_by_id(gn_ensembl)
 
-        tree = PolytomySolver(str(speciesTree), geneTree, distances, "")
+        #PolytomySolver v1.2.4
+        #PolytomySolver(string speciesTreeString, string geneTreeString, string strDistances, string _rerootMode, bool _testEdgeRoots, bool _hasNonnegativeDistanceFlag, bool _useCache)
+        #where rerootMode = "none","findbestroot" or "outputallroots"
+        tree = PolytomySolver(str(speciesTree), geneTree, distances, "none", False, False, True)
 
         tree_obj = TreeClass(tree)
         speciesTree_obj = TreeClass(speciesTree)
