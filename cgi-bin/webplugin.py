@@ -1,5 +1,5 @@
 #!/usr/bin/python
-import sys, re, cgi, time
+import os, sys, re, cgi, time
 
 # settings.py
 from settings import *
@@ -92,7 +92,7 @@ def webplugin_app(environ, start_response, queries):
 
         t = application._treeid2tree[treeid]
 
-        # Phyml
+        # Phyml - v20140520
         # Calculate the log likelihood of the output tree and the given gene sequence data
         # TODO : Wrap this into a separate function that will give log likelihood for a given tree
         if (geneSeq != None):
@@ -124,6 +124,8 @@ def webplugin_app(environ, start_response, queries):
 
             # Fetch phyml output
             output_stats = "%s/utils/phyml_tmp/%s.nex_phyml_stats.txt" %(WEB_APP_FOLDER_PATH, treeid)
+            output_tree = "%s/utils/phyml_tmp/%s.nex_phyml_tree.txt" %(WEB_APP_FOLDER_PATH, treeid)
+    
             ll_keyword = ". Log-likelihood:"
             t.add_feature("log_likelihood", "N/A")
 
@@ -134,7 +136,11 @@ def webplugin_app(environ, start_response, queries):
                         t.log_likelihood = line.strip()
 
             # Clean up tmp files
-          
+            os.remove(input_seqs)
+            os.remove(input_tree)
+            os.remove(output_stats)
+            os.remove(output_tree)
+  
 
         return application._custom_tree_renderer(t, treeid, application)
 
