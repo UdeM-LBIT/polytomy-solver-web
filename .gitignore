@@ -14,4 +14,6 @@ Thumbs.db
 # Project #
 ###########
 cgi-bin/settings.py
+cgi-bin/utils/phyml_tmp
+webplugin/tmp
 

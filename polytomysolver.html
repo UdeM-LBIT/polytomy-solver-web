@@ -108,10 +108,8 @@ var ete_webplugin_URL = "cgi-bin/webplugin.py"
 
         </li>
 
-<!--
         <h2>Gene Sequences</h3>
         <li>
--->
 <!--Example sequences (FASTA)-->
 <!--
 >G0597996
@@ -236,7 +234,6 @@ TGCCTGTGCTACTTTGTCTAACTCCTACGCTCAAGTGGCTCCAAATGTCGTCTGGACGCAAACAAATGGAGTCGAGGGCT
 AAGGCAGAACAAAAACGTCCGTGCGCCTTCATCGCGTTGTAGTAGAGCTTGCGAGACTAAAATGGAACATCACACAATCTGTCAATCCTCGTCCCTGGCGCGGGGTGTGTGATTCTTGAGTGCAATTGCAAGGGACGTAAGGCCGGACACTTTATTTGCATCGCATGGGGGACTGTCGACTTATTTGTGATCCGGCCCTTTGTACCTTATATGCGGACCGCATGGGATTTGGCGTTTGGTGGTATCGAGTGTAGGGAGGTCACTGAGGTACCGACGGAGATAATGGGGAACCATATTGCGGGTCTCTCCCCACCAATGGTGACGTCCGAGCGCATACGCGTGTC
 -->
 <!--Example aligned sequences (NEXUS)-->
-<!--
         <textarea  id="geneSeq">
 #NEXUS
 BEGIN DATA;
@@ -1100,13 +1097,12 @@ AAGC
 end;</textarea>
 
         </li>
--->
     </ul>
 </div>
 
 <div style="clear:both;" >
     <!-- draw_tree(treeid, newick, container) -->
-    <input type='submit'  value='Draw tree'  onClick='polytomysolver(random_tid(), $("#speciesTree").val(),$("#geneTree").val() ,$("#distances").val() ,"species", $("#sp_tol:checked").length,$("#sp_ensembl").val(),"#img1");'>
+    <input type='submit'  value='Draw tree'  onClick='polytomysolver(random_tid(), $("#speciesTree").val(),$("#geneTree").val() ,$("#distances").val(), $("#geneSeq").val(),"species", $("#sp_tol:checked").length,$("#sp_ensembl").val(),"#img1");'>
 
     <input type='button' value='Clear' onClick='$(".ete_image").html("");'>
 </div>

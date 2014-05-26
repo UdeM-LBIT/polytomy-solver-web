@@ -1,27 +1,28 @@
 #!/usr/bin/python
-import sys, os, re, cgi, time
+import sys, re, cgi, time
 
-#settings.py
+# settings.py
 from settings import *
 
-#Configure path accordingly
+# Configure path accordingly
 sys.path.insert(0, WEB_APP_FOLDER_PATH)
 
-#python
+# python
 from string import strip
 from hashlib import md5
+from pyvirtualdisplay import Display
 import _mysql
 import wsgiref.handlers
 
-#ete2
+# toolkits
 from ete2 import WebTreeApplication, PhyloTree, faces, Tree
+from Bio.Phylo.Applications import _Phyml
 
-#project
+# project
 from algorithms.libpolytomysolver import PolytomySolver
 from utils.TreeUtils import TreeUtils, TreeClass
 
-#start virtual display
-from pyvirtualdisplay import Display
+# start virtual display
 xvfb=Display(visible=0, size=(1024, 768)).start()
 
 # In order to extend the default WebTreeApplication, we define our own
@@ -36,6 +37,7 @@ def webplugin_app(environ, start_response, queries):
     if not treeid:
         treeid = md5(str(time.time())).hexdigest()
 
+    #(WSGI needs this)
     #start_response('202 OK', [('content-type', 'text/plain')])
 
     # asked_methods are overriden by the base functions found in WebTreeApplication
@@ -47,11 +49,13 @@ def webplugin_app(environ, start_response, queries):
     if asked_method[1]=="polytomysolver":
         speciesTree = queries.get("speciesTree", [None])[0]
         geneTree = queries.get("geneTree", [None])[0]
+        geneSeq = queries.get("geneSeq", [None])[0]
         distances = queries.get("distances", [None])[0]
         sp_tol = queries.get("sp_tol", [None])[0]
         sp_ensembl = queries.get("sp_ensembl", [None])[0]
         #gn_ensembl = queries.get("gn_ensembl", [None])[0]
 
+        # Use the ensembl tree of life?
         if sp_tol != "0":
             f = open(sys.path[0]+'/ressources/ensembl.nw', 'r')
             speciesTree = f.read()
@@ -60,31 +64,77 @@ def webplugin_app(environ, start_response, queries):
 
         #ensemblSpTree = TreeUtils.fetch_ensembl_genetree_by_id(gn_ensembl)
 
-        #PolytomySolver v1.2.4
-        #PolytomySolver(string speciesTreeString, string geneTreeString, string strDistances, string _rerootMode, bool _testEdgeRoots, bool _hasNonnegativeDistanceFlag, bool _useCache)
-        #where rerootMode = "none","findbestroot" or "outputallroots"
+
+        # PolytomySolver v1.2.4
+        # PolytomySolver(string speciesTreeString, string geneTreeString, string strDistances, string _rerootMode, bool _testEdgeRoots, bool _hasNonnegativeDistanceFlag, bool _useCache)
+        # (where rerootMode = "none","findbestroot" or "outputallroots")
         tree = PolytomySolver(str(speciesTree), geneTree, distances, "none", False, False, True)
 
         tree_obj = TreeClass(tree)
         speciesTree_obj = TreeClass(speciesTree)
 
-        tree_obj.set_species(sep="__",gpos="prefix")
+        tree_obj.set_species(sep="__",pos="postfix")
+        tree_obj.set_genes(sep="__",pos="prefix")
 
         # Note : lcamapping checks if tree_obj.specie == speciesTree_obj.name
-        # Might (definitely) want to implement this in JS
+        # (might want to do the case sanitization in ete.js)
         for node in speciesTree_obj:
             node.name = node.name.lower()
 
         lcamap = TreeUtils.lcaMapping(tree_obj, speciesTree_obj)
 
+        # Reconcile gene and species tree
         TreeUtils.reconcile(tree_obj, lcamap)
 
-        #print >> sys.stderr, tree_obj.get_ascii(attributes=["type"], show_internal=True)
-
+        # Load the result
         if not application._load_tree(treeid, tree_obj):
             return "Cannot load the tree: %s %treeid"
 
         t = application._treeid2tree[treeid]
+
+        # Phyml
+        # Calculate the log likelihood of the output tree and the given gene sequence data
+        # TODO : Wrap this into a separate function that will give log likelihood for a given tree
+        if (geneSeq != None):
+            # Write sequences to file
+            with open("utils/phyml_tmp/%s.nex"%(treeid), "w") as seqs_file:
+                seqs_file.write(geneSeq)
+
+            # Write newick for current tree with only gene names as labels
+            t_tmp = t.copy()
+            leaves = t_tmp.get_leaves()
+            for leaf in leaves:
+                leaf.name=leaf.genes
+
+            with open("utils/phyml_tmp/%s.newick"%(treeid), "w") as newick_file:
+                newick_file.write(t_tmp.write())
+
+            # Set everything up to run phyml on the sequences and get the log likelihood for tree
+            input_seqs = "%s/utils/phyml_tmp/%s.nex" %(WEB_APP_FOLDER_PATH, treeid)
+            input_tree = "%s/utils/phyml_tmp/%s.newick" %(WEB_APP_FOLDER_PATH, treeid)
+
+            phyml = _Phyml.PhymlCommandline(input=input_seqs, input_tree=input_tree, bootstrap=0)
+
+            # NOTE : wrapper (for reasons unknown) adds the '=' character with the optimize params ('-o=none' and not '-o none')
+            # which does not play nice with the newer phyml release
+            phyml.program_name = './"utils/phyml" -o none'
+
+            #NOTE : Try/Catch block?
+            phyml()
+
+            # Fetch phyml output
+            output_stats = "%s/utils/phyml_tmp/%s.nex_phyml_stats.txt" %(WEB_APP_FOLDER_PATH, treeid)
+            ll_keyword = ". Log-likelihood:"
+            t.add_feature("log_likelihood", "N/A")
+
+            with open(output_stats) as search:
+                for line in search:
+                    if ". Log-likelihood:" in line:
+                        line = line.replace(ll_keyword, "")
+                        t.log_likelihood = line.strip()
+
+            # Clean up tmp files
+          
 
         return application._custom_tree_renderer(t, treeid, application)
 
@@ -543,8 +593,10 @@ def tree_renderer(tree, treeid, application):
             tree.write() +\
             "</textarea>"
 
+    tree_ll = '''<br> Log-likelihood : '''+ tree.log_likelihood
+
     # Let's return enriched HTML
-    return tree_panel_html + tree_html + newick
+    return tree_panel_html + tree_html + newick + tree_ll
 
 # ==============================================================================
 #
@@ -646,5 +698,5 @@ if __name__ == '__main__':
 
 	#application.register_action("Default layout", "layout", main_layout, None, None)
 	#application.register_action("Clean layout", "layout", main_layout, None, None)
-	
+
 	wsgiref.handlers.CGIHandler().run(application)

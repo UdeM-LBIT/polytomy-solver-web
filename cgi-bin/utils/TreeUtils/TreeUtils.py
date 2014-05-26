@@ -33,7 +33,7 @@ def fetch_ensembl_genetree_by_id(treeID=None,aligned=0, sequence="none", output=
 		if not resp.status == 200:
 			print "Invalid response: ", resp.status
 			raise ValueError('Failled to process request!')
-	
+		
 		if(output.lower()!="text/x-phyloxml"):
 			return TreeClass(content)
 		else:
@@ -43,7 +43,7 @@ def fetch_ensembl_genetree_by_id(treeID=None,aligned=0, sequence="none", output=
 
 
 def fetch_ensembl_genetree_by_member(memberID=None, species=None, id_type=None, output="nh", nh_format="full"):
-
+	
 	"""Fetch genetree from a member ID
 
 	:argument memberID: the ensembl gene ID member of the tree to fetch, this is mandatory! EX: ENSG00000157764
@@ -157,7 +157,7 @@ def reconcile(geneTree=None, lcaMap=None, lost="no"):
 
 def getTreeFromPhyloxml(xml, saveToFile="default.xml", delFile=True):
 	"""
-	Read a phylogeny tree from a phyloxml string and return a TreeClass object
+	Read a phylogeny tree from a phyloxml string and return a TreeClass object 
 	or a list of TreeClass object
 	"""
 	project = Phyloxml()

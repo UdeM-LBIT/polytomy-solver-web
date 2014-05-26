@@ -7,12 +7,12 @@ function draw_tree(treeid, newick, recipient, extra_params){
 
 	$(recipient).css({"min-height":$(recipient).height()});
 	$("#img0").css({"min-height":$(recipient).height()});
-	
+
 	if ($(recipient).html() != loading_img) {
 		$(recipient).html(loading_img);
-	} 
+	}
 
-	var params = {"tree": newick, 
+	var params = {"tree": newick,
 		      "treeid": treeid};
 
 	if ( extra_params != undefined ){
@@ -33,11 +33,13 @@ function draw_tree(treeid, newick, recipient, extra_params){
 			}});
 }
 
-function polytomysolver(treeid, speciesTree, geneTree, distances, show_features, sp_tol, sp_ensembl, recipient, extra_params){
-	var params = {"speciesTree": speciesTree,
+function polytomysolver(treeid, speciesTree, geneTree, distances, geneSeq, show_features, sp_tol, sp_ensembl, recipient, extra_params){
+	var params = {
+        "speciesTree": speciesTree,
 		"geneTree": geneTree,
 		"distances": distances,
-		"treeid": treeid,
+		"geneSeq": geneSeq,
+        "treeid": treeid,
 		"show_features": show_features,
 		"sp_tol":sp_tol,
 		"sp_ensembl": sp_ensembl};
@@ -79,7 +81,7 @@ function run_action(treeid, nodeid, aindex, search_term){
 	$(recipient).css({"min-height":$(recipient).height()});
 	$(recipient).fadeIn().html(loading_img);
 
-	//Fix for CGI to WSGI bug 	
+	//Fix for CGI to WSGI bug
 	var selected_features = [];
 	$(document.getElementById("form_tree_features")).children("input[name=tree_feature_selector]").each(function(){
 			if ($(this).is(":checked")){
@@ -88,16 +90,16 @@ function run_action(treeid, nodeid, aindex, search_term){
 			});
 
 	var params = {
-		"treeid": treeid, 
-		"nid": nodeid, 
+		"treeid": treeid,
+		"nid": nodeid,
 		"aindex": aindex,
 		"show_features": selected_features.join(","),
 		"search_term": search_term
 	};
 
-	//Little hack... the CGI wrapper seems to make the app "forget" things such as features. 
+	//Little hack... the CGI wrapper seems to make the app "forget" things such as features.
 	//Here we call our action to change the html and then redraw with the proper features.
-	//(simply putting show_features in params does not work) 
+	//(simply putting show_features in params does not work)
 	$.post(ete_webplugin_URL+'/action', params, function(data, textStatus, jqXHR){
 			if ( status == "error" ) {
 			$( recipient ).html( '<b style="color:red;"> Oops! Something went wrong.</b>' );
