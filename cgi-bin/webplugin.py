@@ -52,18 +52,16 @@ def webplugin_app(environ, start_response, queries):
         geneSeq = queries.get("geneSeq", [None])[0]
         distances = queries.get("distances", [None])[0]
         sp_tol = queries.get("sp_tol", [None])[0]
-        sp_ensembl = queries.get("sp_ensembl", [None])[0]
-        #gn_ensembl = queries.get("gn_ensembl", [None])[0]
+        gn_ensembl_tree = queries.get("gn_ensembl", [None])[0]
 
         # Use the ensembl tree of life?
         if sp_tol != "0":
-            f = open(sys.path[0]+'/ressources/ensembl.nw', 'r')
+            f = open(WEB_APP_FOLDER_PATH+'/ressources/ensembl.nw', 'r')
             speciesTree = f.read()
-        elif sp_ensembl:
-            speciesTree = TreeUtils.fetch_ensembl_genetree_by_id(sp_ensembl)
 
-        #ensemblSpTree = TreeUtils.fetch_ensembl_genetree_by_id(gn_ensembl)
-
+        # Use an ensembl gene tree?
+        if gn_ensembl_tree:
+            geneTree = TreeUtils.fetch_ensembl_genetree_by_id(gn_ensembl_tree)
 
         # PolytomySolver v1.2.4
         # PolytomySolver(string speciesTreeString, string geneTreeString, string strDistances, string _rerootMode, bool _testEdgeRoots, bool _hasNonnegativeDistanceFlag, bool _useCache)
@@ -119,13 +117,14 @@ def webplugin_app(environ, start_response, queries):
             # which does not play nice with the newer phyml release
             phyml.program_name = './"utils/phyml" -o none'
 
+            # Run phyml
             #NOTE : Try/Catch block?
             phyml()
 
             # Fetch phyml output
             output_stats = "%s/utils/phyml_tmp/%s.nex_phyml_stats.txt" %(WEB_APP_FOLDER_PATH, treeid)
             output_tree = "%s/utils/phyml_tmp/%s.nex_phyml_tree.txt" %(WEB_APP_FOLDER_PATH, treeid)
-    
+
             ll_keyword = ". Log-likelihood:"
             t.add_feature("log_likelihood", "N/A")
 
@@ -140,7 +139,7 @@ def webplugin_app(environ, start_response, queries):
             os.remove(input_tree)
             os.remove(output_stats)
             os.remove(output_tree)
-  
+
 
         return application._custom_tree_renderer(t, treeid, application)
 
