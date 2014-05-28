@@ -17,10 +17,14 @@ var ete_webplugin_URL = "cgi-bin/webplugin.py"
 /* Set qtip for title elements */
 $(document).ready(function () {
         $('[title!=""]').qtip({
+            position: {
+                    my: 'left center',
+                    at: 'right center'
+                },
             style:{
                 classes:'qtip-dark'
             }
-        });
+       });
 });
 </script>
 <link rel="stylesheet" type="text/css" href="webplugin/ete.css" >
