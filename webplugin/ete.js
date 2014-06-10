@@ -3,7 +3,7 @@
 var ete_webplugin_URL = "http://127.0.0.1:8080/wsgi/webplugin.py";
 var loading_img = '<img border=0 src="webplugin/loader.gif">';
 
-function draw_tree(treeid, newick, recipient, extra_params){
+function draw_tree(treeid, newick, recipient, show_features, extra_params){
 
 	$(recipient).css({"min-height":$(recipient).height()});
 	$("#img0").css({"min-height":$(recipient).height()});
@@ -13,7 +13,8 @@ function draw_tree(treeid, newick, recipient, extra_params){
 	}
 
 	var params = {"tree": newick,
-		      "treeid": treeid};
+		        "treeid": treeid,
+         "show_features": show_features};
 
 	if ( extra_params != undefined ){
 		var params =  $.extend(params, extra_params);
@@ -50,14 +51,15 @@ function polytomysolver(treeid, speciesTree, geneTree, distances, geneSeq, show_
 
 	$(recipient).html(loading_img);
 
-	$(recipient).load(ete_webplugin_URL+'/polytomysolver', params,
+	$(recipient).load(ete_webplugin_URL+'/polytomysolver_dropdown', params,
 
 			function( response, status, xhr ) {
 
 			if ( status == "error" ) {
 			$( recipient ).html( '<b style="color:red;"> Oops! Something went wrong.</b>' );
 			}else{
-			$(recipient).css("display","none");
+
+			//$(recipient).css("display","none");
 			$(recipient).find("img.ete_tree_img").load(function(){
 				$(recipient).fadeIn('short').css({"display":"inline-block" ,"min-height":$(recipient).height()});
 				$("#img0").css({"display":"inline-block" ,"min-height":$(recipient).height()});
@@ -83,9 +85,10 @@ function run_action(treeid, nodeid, aindex, search_term){
 
 	//Fix for CGI to WSGI bug
 	var selected_features = [];
-	$(document.getElementById("form_tree_features")).children("input[name=tree_feature_selector]").each(function(){
+	// $(document.getElementById("form_tree_features")).children("input[name=tree_feature_selector]").each(function(){
+	 $("#form_tree_features").children("input[name=tree_feature_selector]").each(function(){
 			if ($(this).is(":checked")){
-			selected_features.push($(this).val());
+			    selected_features.push($(this).val());
 			}
 			});
 
@@ -97,6 +100,7 @@ function run_action(treeid, nodeid, aindex, search_term){
 		"search_term": search_term
 	};
 
+
 	//Little hack... the CGI wrapper seems to make the app "forget" things such as features.
 	//Here we call our action to change the html and then redraw with the proper features.
 	//(simply putting show_features in params does not work)
@@ -104,7 +108,7 @@ function run_action(treeid, nodeid, aindex, search_term){
 			if ( status == "error" ) {
 			$( recipient ).html( '<b style="color:red;"> Oops! Something went wrong.</b>' );
 			} else {
-			draw_tree(treeid, "", recipient, params );
+			draw_tree(treeid, "", recipient, selected_features.join(",") );
 			}
 			});
 

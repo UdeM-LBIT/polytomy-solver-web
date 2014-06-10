@@ -13,6 +13,7 @@ from hashlib import md5
 from pyvirtualdisplay import Display
 import _mysql
 import wsgiref.handlers
+import json
 
 # toolkits
 from ete2 import WebTreeApplication, PhyloTree, faces, Tree
@@ -66,52 +67,64 @@ def webplugin_app(environ, start_response, queries):
         # PolytomySolver v1.2.4
         # PolytomySolver(string speciesTreeString, string geneTreeString, string strDistances, string _rerootMode, bool _testEdgeRoots, bool _hasNonnegativeDistanceFlag, bool _useCache)
         # (where rerootMode = "none","findbestroot" or "outputallroots")
-        tree = PolytomySolver(str(speciesTree), geneTree, distances, "none", False, False, True)
+        #tree = PolytomySolver(str(speciesTree), geneTree, distances, "none", False, False, True)
+        polytomysolver_out = PolytomySolver(str(speciesTree), geneTree, distances, "outputallroots", False, False, True)
+        trees_out = []
+        trees_processed = []
 
-        tree_obj = TreeClass(tree)
-        speciesTree_obj = TreeClass(speciesTree)
+        # Get list of trees
+        for line in polytomysolver_out.splitlines():
+            if line[0] != "#":
+               trees_out.append(line)
 
-        tree_obj.set_species(sep="__",pos="postfix")
-        tree_obj.set_genes(sep="__",pos="prefix")
 
-        # Note : lcamapping checks if tree_obj.specie == speciesTree_obj.name
-        # (might want to do the case sanitization in ete.js)
-        for node in speciesTree_obj:
-            node.name = node.name.lower()
+        for tree in trees_out:
+            tree_obj = TreeClass(tree)
+            speciesTree_obj = TreeClass(speciesTree)
 
-        lcamap = TreeUtils.lcaMapping(tree_obj, speciesTree_obj)
+            tree_obj.set_species(sep="__",pos="postfix")
+            tree_obj.set_genes(sep="__",pos="prefix")
 
-        # Reconcile gene and species tree
-        TreeUtils.reconcile(tree_obj, lcamap)
+            # Note : lcamapping checks if tree_obj.specie == speciesTree_obj.name
+            # (might want to do the case sanitization in ete.js)
+            for node in speciesTree_obj:
+                node.name = node.name.lower()
 
-        # Load the result
-        if not application._load_tree(treeid, tree_obj):
+            lcamap = TreeUtils.lcaMapping(tree_obj, speciesTree_obj)
+
+            # Reconcile gene and species tree
+            TreeUtils.reconcile(tree_obj, lcamap)
+            trees_processed.append(tree_obj)
+
+        # Load the first tree
+        if not application._load_tree(treeid, trees_processed[0]):
             return "Cannot load the tree: %s %treeid"
 
         t = application._treeid2tree[treeid]
 
         # Phyml - v20140520
         # Calculate the log likelihood of the output tree and the given gene sequence data
-        # TODO : Wrap this into a separate function that will give log likelihood for a given tree
+        # TODO : Wrap this into a separate function that will give log likelihood for a given tree and set of sequences
         if (geneSeq != None):
             # Write sequences to file
             with open("utils/phyml_tmp/%s.nex"%(treeid), "w") as seqs_file:
                 seqs_file.write(geneSeq)
 
-            # Write newick for current tree with only gene names as labels
-            t_tmp = t.copy()
-            leaves = t_tmp.get_leaves()
-            for leaf in leaves:
-                leaf.name=leaf.genes
-
             with open("utils/phyml_tmp/%s.newick"%(treeid), "w") as newick_file:
-                newick_file.write(t_tmp.write())
+                for tree in trees_processed:
+                    # Write newick for trees in a .newick file named after the treeid of the first tree
+                    # Convert all tree labels to gene names only
+                    t_tmp = tree.copy()
+                    leaves = t_tmp.get_leaves()
+                    for leaf in leaves:
+                        leaf.name=leaf.genes
+                    newick_file.write(t_tmp.write(features=[])+"\n")
 
             # Set everything up to run phyml on the sequences and get the log likelihood for tree
             input_seqs = "%s/utils/phyml_tmp/%s.nex" %(WEB_APP_FOLDER_PATH, treeid)
-            input_tree = "%s/utils/phyml_tmp/%s.newick" %(WEB_APP_FOLDER_PATH, treeid)
+            input_trees = "%s/utils/phyml_tmp/%s.newick" %(WEB_APP_FOLDER_PATH, treeid)
 
-            phyml = _Phyml.PhymlCommandline(input=input_seqs, input_tree=input_tree, bootstrap=0)
+            phyml = _Phyml.PhymlCommandline(input=input_seqs, input_tree=input_trees, bootstrap=0)
 
             # NOTE : wrapper (for reasons unknown) adds the '=' character with the optimize params ('-o=none' and not '-o none')
             # which does not play nice with the newer phyml release
@@ -136,10 +149,165 @@ def webplugin_app(environ, start_response, queries):
 
             # Clean up tmp files
             os.remove(input_seqs)
-            os.remove(input_tree)
+            os.remove(input_trees)
             os.remove(output_stats)
             os.remove(output_tree)
 
+        # NOTE : possibly inject dropdown through substring replacement?
+        return application._custom_tree_renderer(t, treeid, application)
+
+
+
+
+
+    #
+    # PolytomySolver (List of trees dropdown)
+    #
+    if asked_method[1]=="polytomysolver_dropdown":
+        speciesTree = queries.get("speciesTree", [None])[0]
+        geneTree = queries.get("geneTree", [None])[0]
+        geneSeq = queries.get("geneSeq", [None])[0]
+        distances = queries.get("distances", [None])[0]
+        sp_tol = queries.get("sp_tol", [None])[0]
+        gn_ensembl_tree = queries.get("gn_ensembl", [None])[0]
+        #gn_reroot_mode = queries.get("gn_reroot_mode", [None])[0]
+
+        # Use the ensembl tree of life?
+        if sp_tol != "0":
+            f = open(WEB_APP_FOLDER_PATH+'/ressources/ensembl.nw', 'r')
+            speciesTree = f.read()
+
+        # Use an ensembl gene tree?
+        if gn_ensembl_tree:
+            geneTree = TreeUtils.fetch_ensembl_genetree_by_id(gn_ensembl_tree)
+
+        # PolytomySolver v1.2.4
+        # PolytomySolver(string speciesTreeString, string geneTreeString, string strDistances, string _rerootMode, bool _testEdgeRoots, bool _hasNonnegativeDistanceFlag, bool _useCache)
+        # (where rerootMode = "none","findbestroot" or "outputallroots")
+        #tree = PolytomySolver(str(speciesTree), geneTree, distances, "none", False, False, True)
+        polytomysolver_out = PolytomySolver(str(speciesTree), geneTree, distances, "outputallroots", False, False, True)
+        trees_out = []
+        trees_processed = []
+
+        # Get list of trees
+        for line in polytomysolver_out.splitlines():
+            if line[0] != "#":
+               trees_out.append(line)
+
+
+        for tree in trees_out:
+            tree_obj = TreeClass(tree)
+            speciesTree_obj = TreeClass(speciesTree)
+
+            tree_obj.set_species(sep="__",pos="postfix")
+            tree_obj.set_genes(sep="__",pos="prefix")
+
+            # Note : lcamapping checks if tree_obj.specie == speciesTree_obj.name
+            # (might want to do the case sanitization in ete.js)
+            for node in speciesTree_obj:
+                node.name = node.name.lower()
+
+            lcamap = TreeUtils.lcaMapping(tree_obj, speciesTree_obj)
+
+            # Reconcile gene and species tree
+            TreeUtils.reconcile(tree_obj, lcamap)
+            trees_processed.append(tree_obj)
+            if not application._load_tree(treeid, tree_obj):
+                return "Cannot load the tree: %s %treeid"
+
+
+        # Phyml - v20140520
+        # Calculate the log likelihood of the output tree and the given gene sequence data
+        # TODO : Wrap this into a separate function that will give log likelihood for a given tree and set of sequences
+        if (geneSeq != None):
+            # Write sequences to file
+            with open("utils/phyml_tmp/%s.nex"%(treeid), "w") as seqs_file:
+                seqs_file.write(geneSeq)
+
+            with open("utils/phyml_tmp/%s.newick"%(treeid), "w") as newick_file:
+                for tree in trees_processed:
+                    # Write newick for trees in a .newick file named after the treeid of the first tree
+                    # Convert all tree labels to gene names only
+                    t_tmp = tree.copy()
+                    leaves = t_tmp.get_leaves()
+                    for leaf in leaves:
+                        leaf.name=leaf.genes
+                    newick_file.write(t_tmp.write(features=[])+"\n")
+
+            # Set everything up to run phyml on the sequences and get the log likelihood for tree
+            input_seqs = "%s/utils/phyml_tmp/%s.nex" %(WEB_APP_FOLDER_PATH, treeid)
+            input_trees = "%s/utils/phyml_tmp/%s.newick" %(WEB_APP_FOLDER_PATH, treeid)
+
+            phyml = _Phyml.PhymlCommandline(input=input_seqs, input_tree=input_trees, bootstrap=0)
+
+            # NOTE : wrapper (for reasons unknown) adds the '=' character with the optimize params ('-o=none' and not '-o none')
+            # which does not play nice with the newer phyml release
+            phyml.program_name = './"utils/phyml" -o none'
+
+            # Run phyml
+            #NOTE : Try/Catch block?
+            phyml()
+
+            # Fetch phyml output
+            output_stats = "%s/utils/phyml_tmp/%s.nex_phyml_stats.txt" %(WEB_APP_FOLDER_PATH, treeid)
+            output_tree = "%s/utils/phyml_tmp/%s.nex_phyml_tree.txt" %(WEB_APP_FOLDER_PATH, treeid)
+
+            ll_keyword = ". Log-likelihood:"
+            log_index = 0
+
+            with open(output_stats) as search:
+                for line in search:
+                    if ". Log-likelihood:" in line:
+                        line = line.replace(ll_keyword, "")
+                        trees_processed[log_index].log_likelihood=line.strip()
+                        trees_processed[log_index].tree_number=log_index+1
+                        log_index += 1
+
+            # Clean up tmp files
+            os.remove(input_seqs)
+            os.remove(input_trees)
+            os.remove(output_stats)
+            os.remove(output_tree)
+
+            # Dropdown for all trees
+            trees_dropdown ="""<script>
+                            $("#select_trees_dropdown").on("change", function(){
+                                var sel = document.getElementById("select_trees_dropdown");
+                                var selected_value = sel.options[sel.selectedIndex].value;
+                                var selected_value_json = JSON.parse(selected_value);
+                                draw_tree(%s, selected_value_json.newick, "#img1", "name");
+                                });
+
+                                $(document).ready(function() {
+                                $('#select_trees_dropdown').trigger("change");
+                                });
+
+                                </script>"""%(treeid) +\
+                                        """<select id="select_trees_dropdown">"""
+
+            trees_processed.sort(key=lambda x: x.log_likelihood)
+
+            for tree in trees_processed:
+                value = json.dumps({"newick":tree.write(features=[]),"log-likelihood":tree.log_likelihood})
+                trees_dropdown += "<option value='%s'>Tree %d (Log-likelihood : %s)</option>"%(value,tree.tree_number,tree.log_likelihood)
+            trees_dropdown += '</select>'
+
+        return trees_dropdown
+
+
+    #
+    # Draw (cgi)
+    #
+    if asked_method[1]=="draw_cgi":
+        tree = queries.get("tree", [None])[0]
+        treeid = queries.get("treeid", [None])[0]
+
+        t = TreeClass(tree)
+
+        if not application._load_tree(treeid, t):
+            return "Cannot load the tree: %s %treeid"
+
+        t = application._treeid2tree[treeid]
 
         return application._custom_tree_renderer(t, treeid, application)
 
@@ -182,7 +350,7 @@ def my_tree_loader(tree):
 # ==============================================================================
 # CUSTOM LAYOUTS
 #
-# This are my layout functions. I want the WebTreeApplication to use
+# These are my layout functions. I want the WebTreeApplication to use
 # them for rendering trees
 # ==============================================================================
 
@@ -195,7 +363,6 @@ def main_layout(node):
     # the global variable LEAVE_FACES, which is set by the application
     # controler according to the arguments passed through the URL.
     if node.is_leaf():
-
         for f, fkey, pos in LEAVE_FACES:
             if hasattr(node, fkey):
                 faces.add_face_to_node(f, node, column=pos, position="branch-right")
@@ -220,18 +387,18 @@ def main_layout(node):
 
     # Evoltype: [1] Duplication A, [0] Speciation, [2] NAD or [-1] Losses.
     if hasattr(node,"type"):
-        if node.type == 2:
+        if str(node.type) == "2":
             node.img_style["fgcolor"] = "#1A1A1A"
-        elif node.type == 1:
+        elif str(node.type) == "1":
             node.img_style["fgcolor"] = "#3F9933"
             node.img_style["size"] = 12
             node.img_style["hz_line_type"] = 0
             node.img_style["vt_line_type"] = 0
-        elif node.type == 0:
+        elif str(node.type) == "0":
             node.img_style["fgcolor"] = "#000000"
             node.img_style["vt_line_color"] = "#000000"
             node.img_style["hz_line_color"] = "#000000"
-        elif node.type == -1:
+        elif str(node.type) == "-1":
             node.img_style["fgcolor"] = "#FF0000"
             node.img_style["vt_line_color"] = "#FF0000"
             node.img_style["hz_line_color"] = "#FF0000"
@@ -436,7 +603,8 @@ def tree_renderer(tree, treeid, application):
 
     # Extracts from URL query the features that must be drawn in the tree
     asked_features = application.queries.get("show_features", ["name"])[0].split(",")
-    print >>sys.stderr, asked_features
+    print >> sys.stderr, asked_features
+
     def update_features_avail(feature_key, name, col, fsize, fcolor, prefix, suffix):
         text_features_avail.setdefault(feature_key, [name, 0, col, fsize, fcolor, prefix, suffix])
         text_features_avail[feature_key][1] += 1
@@ -453,9 +621,8 @@ def tree_renderer(tree, treeid, application):
     leaves = tree.get_leaves()
     formated_features =  {
             # feature_name: ["Description", face column position, text_size, color, text_prefix, text_suffix ]
-
-            #"name": ["leaf name", len(leaves), 0, 12, "#000000", "", ""],
-            "spname": ["Species name", len(leaves), 1, 12, "#f00000", " Species:", ""],
+            #"name": ["name", len(leaves), 0, 11, "#000000", "", ""],
+            #"spname": ["Species name", len(leaves), 1, 11, "#f00000", " Species:", ""],
             }
 
     # populates the global LEAVE_FACES variable
@@ -510,7 +677,7 @@ def tree_renderer(tree, treeid, application):
                                 if ($(this).is(":checked")){
                                     allVals.push($(this).val());
                                 }});
-                                draw_tree("%s", "", "#img1", {"show_features": allVals.join(",")} );'
+                                draw_tree("%s", "", "#img1", allVals.join(",") );'
                        >
                        </form></div>''' %(treeid)
 
@@ -589,16 +756,25 @@ def tree_renderer(tree, treeid, application):
             main_search + features_button + clean_search_button + download_button +\
             '</div>'
 
+
+
+
     tree_panel_html = '<div id="tree_panel">' + search_form + html_features + buttons + '</div>'
 
     # Now we render the tree into image and get the HTML that handles it
     tree_html = application._get_tree_img(treeid = treeid)
 
     newick = '''<br><textarea  id="newick_out" style="width: 500px; height: 80px; border:dashed 1px;">''' + \
-            tree.write() +\
+            tree.write(features=[]) +\
             "</textarea>"
 
-    tree_ll = '''<br> Log-likelihood : '''+ tree.log_likelihood
+    try:
+        tree_ll = '''<br> Log-likelihood : '''+ tree.log_likelihood
+    except Exception as e:
+        tree_ll = ""
+
+    # Now that the tree image (and final html) have been generated, stop the virtual X server.
+    xvfb.stop()
 
     # Let's return enriched HTML
     return tree_panel_html + tree_html + newick + tree_ll

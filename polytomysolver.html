@@ -253,7 +253,7 @@ TGCCTGTGCTACTTTGTCTAACTCCTACGCTCAAGTGGCTCCAAATGTCGTCTGGACGCAAACAAATGGAGTCGAGGGCT
 AAGGCAGAACAAAAACGTCCGTGCGCCTTCATCGCGTTGTAGTAGAGCTTGCGAGACTAAAATGGAACATCACACAATCTGTCAATCCTCGTCCCTGGCGCGGGGTGTGTGATTCTTGAGTGCAATTGCAAGGGACGTAAGGCCGGACACTTTATTTGCATCGCATGGGGGACTGTCGACTTATTTGTGATCCGGCCCTTTGTACCTTATATGCGGACCGCATGGGATTTGGCGTTTGGTGGTATCGAGTGTAGGGAGGTCACTGAGGTACCGACGGAGATAATGGGGAACCATATTGCGGGTCTCTCCCCACCAATGGTGACGTCCGAGCGCATACGCGTGTC
 -->
 <!--Example aligned sequences (NEXUS)-->
-        <textarea  id="geneSeq">
+        <textarea title="NEXUS format" id="geneSeq">
 #NEXUS
 BEGIN DATA;
 dimensions ntax=60 nchar=654;
@@ -1121,7 +1121,7 @@ end;</textarea>
 
 <div style="clear:both;" >
     <!-- draw_tree(treeid, newick, container) -->
-    <input type='submit'  value='Draw tree'  onClick='polytomysolver(random_tid(), $("#speciesTree").val(),$("#geneTree").val() ,$("#distances").val(), $("#geneSeq").val(),"species", $("#sp_tol:checked").length,$("#gn_ensembl").val(),"#img1");'>
+    <input type='submit'  value='Draw tree'  onClick='polytomysolver(random_tid(), $("#speciesTree").val(),$("#geneTree").val() ,$("#distances").val(), $("#geneSeq").val(),"species", $("#sp_tol:checked").length,$("#gn_ensembl").val(),"#polytomysolver_dropdown");'>
 
     <input type='button' value='Clear' onClick='$(".ete_image").html("");'>
 </div>
@@ -1129,6 +1129,7 @@ end;</textarea>
     <br>
     <!-- Tree containers -->
     <div class="ete_image_container" style="display:inline-block;" id="img0">
+    	<div class="ete_image" style="display:inline-block;" id="polytomysolver_dropdown"></div><br>
     	<div class="ete_image" style="display:inline-block;" id="img1"></div><br>
 	</div>
     <!-- Fill this out when we get the image + newick response (TODO : separate from the draw html response) -->
