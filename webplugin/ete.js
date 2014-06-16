@@ -34,7 +34,7 @@ function draw_tree(treeid, newick, recipient, show_features, extra_params){
 			}});
 }
 
-function polytomysolver(treeid, speciesTree, geneTree, distances, geneSeq, show_features, sp_tol, gn_ensembl, recipient, extra_params){
+function polytomysolver(treeid, speciesTree, geneTree, distances, geneSeq, show_features, sp_tol, gn_ensembl, gn_reroot_mode,recipient, extra_params){
 	var params = {
         "speciesTree": speciesTree,
 		"geneTree": geneTree,
@@ -43,7 +43,8 @@ function polytomysolver(treeid, speciesTree, geneTree, distances, geneSeq, show_
         "treeid": treeid,
 		"show_features": show_features,
 		"sp_tol": sp_tol,
-		"gn_ensembl": gn_ensembl};
+		"gn_ensembl": gn_ensembl,
+        "gn_reroot_mode": gn_reroot_mode};
 
 	if ( extra_params != undefined ){
 		var params =  $.extend(params, extra_params);

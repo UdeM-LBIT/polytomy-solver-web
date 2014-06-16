@@ -1116,12 +1116,22 @@ AAGC
 end;</textarea>
 
         </li>
+
+        <h2>Parameters</h3>
+        <li>
+          Mode :
+          <select id="gn_reroot_mode">
+              <option value="outputallroots">Output All Roots (outputallroots)</option>
+              <option value="none">None</option>
+              <option value="findbestroot">Find Best Root (find best root)</option>
+          </select>
+        </li>
     </ul>
 </div>
 
 <div style="clear:both;" >
     <!-- draw_tree(treeid, newick, container) -->
-    <input type='submit'  value='Draw tree'  onClick='polytomysolver(random_tid(), $("#speciesTree").val(),$("#geneTree").val() ,$("#distances").val(), $("#geneSeq").val(),"name", $("#sp_tol:checked").length,$("#gn_ensembl").val(),"#polytomysolver_dropdown");'>
+    <input type='submit'  value='Draw tree'  onClick='polytomysolver(random_tid(), $("#speciesTree").val(),$("#geneTree").val() ,$("#distances").val(), $("#geneSeq").val(),"name", $("#sp_tol:checked").length,$("#gn_ensembl").val(),$("#gn_reroot_mode option:selected").val(),"#polytomysolver_dropdown");'>
 
     <input type='button' value='Clear' onClick='$(".ete_image").html("");'>
 </div>

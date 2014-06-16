@@ -107,10 +107,10 @@ def webplugin_app(environ, start_response, queries):
         # TODO : Wrap this into a separate function that will give log likelihood for a given tree and set of sequences
         if (geneSeq != None):
             # Write sequences to file
-            with open("utils/phyml_tmp/%s.nex"%(treeid), "w") as seqs_file:
+            with open("utils/phyml_tmp/%s.nex"%treeid, "w") as seqs_file:
                 seqs_file.write(geneSeq)
 
-            with open("utils/phyml_tmp/%s.newick"%(treeid), "w") as newick_file:
+            with open("utils/phyml_tmp/%s.newick"%treeid, "w") as newick_file:
                 for tree in trees_processed:
                     # Write newick for trees in a .newick file named after the treeid of the first tree
                     # Convert all tree labels to gene names only
@@ -128,7 +128,7 @@ def webplugin_app(environ, start_response, queries):
 
             # NOTE : wrapper (for reasons unknown) adds the '=' character with the optimize params ('-o=none' and not '-o none')
             # which does not play nice with the newer phyml release
-            
+
 	    phyml.set_parameter("-o","none")
 	    phyml.program_name = 'utils/phyml'
 
@@ -163,7 +163,7 @@ def webplugin_app(environ, start_response, queries):
 
 
     #
-    # PolytomySolver (List of trees dropdown)
+    # PolytomySolver
     #
     if asked_method[1]=="polytomysolver_dropdown":
         speciesTree = queries.get("speciesTree", [None])[0]
@@ -172,7 +172,7 @@ def webplugin_app(environ, start_response, queries):
         distances = queries.get("distances", [None])[0]
         sp_tol = queries.get("sp_tol", [None])[0]
         gn_ensembl_tree = queries.get("gn_ensembl", [None])[0]
-        #gn_reroot_mode = queries.get("gn_reroot_mode", [None])[0]
+        gn_reroot_mode = queries.get("gn_reroot_mode", [None])[0]
 
         # Use the ensembl tree of life?
         if sp_tol != "0":
@@ -187,7 +187,11 @@ def webplugin_app(environ, start_response, queries):
         # PolytomySolver(string speciesTreeString, string geneTreeString, string strDistances, string _rerootMode, bool _testEdgeRoots, bool _hasNonnegativeDistanceFlag, bool _useCache)
         # (where rerootMode = "none","findbestroot" or "outputallroots")
         #tree = PolytomySolver(str(speciesTree), geneTree, distances, "none", False, False, True)
-        polytomysolver_out = PolytomySolver(str(speciesTree), geneTree, distances, "outputallroots", False, False, True)
+        if gn_reroot_mode in ["none","findbestroot","outputallroots"]:
+            polytomysolver_out = PolytomySolver(str(speciesTree), geneTree, distances, gn_reroot_mode, False, False, True)
+        else:
+            return '<b style="color:red;"> PolytomySolver reroot mode error. </b>'
+
         trees_out = []
         trees_processed = []
 
@@ -215,7 +219,7 @@ def webplugin_app(environ, start_response, queries):
             TreeUtils.reconcile(tree_obj, lcamap)
             trees_processed.append(tree_obj)
             if not application._load_tree(treeid, tree_obj):
-                return "Cannot load the tree: %s %treeid"
+                return '<b style="color:red;"> Cannot load the tree: %s' %treeid
 
 
         # Phyml - v20140520
@@ -223,10 +227,10 @@ def webplugin_app(environ, start_response, queries):
         # TODO : Wrap this into a separate function that will give log likelihood for a given tree and set of sequences
         if (geneSeq != None):
             # Write sequences to file
-            with open("utils/phyml_tmp/%s.nex"%(treeid), "w") as seqs_file:
+            with open("utils/phyml_tmp/%s.nex"%treeid, "w") as seqs_file:
                 seqs_file.write(geneSeq)
 
-            with open("utils/phyml_tmp/%s.newick"%(treeid), "w") as newick_file:
+            with open("utils/phyml_tmp/%s.newick"%treeid, "w") as newick_file:
                 for tree in trees_processed:
                     # Write newick for trees in a .newick file named after the treeid of the first tree
                     # Convert all tree labels to gene names only
@@ -244,8 +248,9 @@ def webplugin_app(environ, start_response, queries):
 
             # NOTE : wrapper (for reasons unknown) adds the '=' character with the optimize params ('-o=none' and not '-o none')
             # which does not play nice with the newer phyml release
-	    phyml.set_parameter("-o","none")
-            phyml.program_name = 'utils/phyml'
+	    #phyml.set_parameter("-o","none")
+            #phyml.program_name = 'utils/phyml'
+            phyml.program_name = './"utils/phyml" -o none'
 
             # Run phyml
             #NOTE : Try/Catch block?
@@ -285,7 +290,7 @@ def webplugin_app(environ, start_response, queries):
                                 $('#select_trees_dropdown').trigger("change");
                                 });
 
-                                </script>"""%(treeid) +\
+                                </script>"""%treeid +\
                                         """<select id="select_trees_dropdown">"""
 
             trees_processed.sort(key=lambda x: x.log_likelihood)
@@ -606,7 +611,6 @@ def tree_renderer(tree, treeid, application):
     formated_features =  {
             # feature_name: ["Description", face column position, text_size, color, text_prefix, text_suffix ]
             "name": ["name", len(leaves), 0, 11, "#000000", "", ""],
-            #"spname": ["Species name", len(leaves), 1, 11, "#f00000", " Species:", ""],
             }
 
     # populates the global LEAVE_FACES variable
@@ -621,7 +625,10 @@ def tree_renderer(tree, treeid, application):
         else:
             # If the feature has no associated format, let's add something standard
             prefix = " %s: " %fkey
-            f = faces.AttrFace(fkey, ftype="Arial", fsize=10, fgcolor="#666666", text_prefix=prefix, text_suffix="")
+            suffix = ","
+            if fkey == asked_features[-1]:
+                suffix=""
+            f = faces.AttrFace(fkey, ftype="Arial", fsize=10, fgcolor="#666666", text_prefix=prefix, text_suffix=suffix)
             LEAVE_FACES.append([f, fkey, unknown_faces_pos])
             unknown_faces_pos += 1
 
@@ -663,7 +670,7 @@ def tree_renderer(tree, treeid, application):
                                 }});
                                 draw_tree("%s", "", "#img1", allVals.join(",") );'
                        >
-                       </form></div>''' %(treeid)
+                       </form></div>''' %treeid
 
     features_button = '''
      <li><a href="javascript:;" onclick='show_box(event, $(this).closest("#tree_panel").children("#tree_features_box"));'>
@@ -673,7 +680,7 @@ def tree_renderer(tree, treeid, application):
     download_button = '''
      <li><a href="webplugin/tmp/%s.png" target="_blank">
      <img width=16 height=16 src="webplugin/icon_attachment.png" alt="Download tree image">
-     </a></li>''' %(treeid)
+     </a></li>''' %treeid
 
     search_button = '''
       <li><a href="javascript:;" onclick='javascript:
