@@ -80,17 +80,16 @@ function run_action(treeid, nodeid, aindex, search_term){
 	//var recipient = "#ETE_tree_"+treeid;
 	var recipient = "#img1";
 
-	$(recipient).css({"min-height":$(recipient).height()});
-	$(recipient).fadeIn().html(loading_img);
-
 	//Fix for CGI to WSGI bug
 	var selected_features = [];
-	// $(document.getElementById("form_tree_features")).children("input[name=tree_feature_selector]").each(function(){
 	 $("#form_tree_features").children("input[name=tree_feature_selector]").each(function(){
 			if ($(this).is(":checked")){
 			    selected_features.push($(this).val());
 			}
 			});
+
+	$(recipient).css({"min-height":$(recipient).height()});
+	$(recipient).fadeIn().html(loading_img);
 
 	var params = {
 		"treeid": treeid,
