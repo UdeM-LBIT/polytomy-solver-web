@@ -52,7 +52,7 @@ function polytomysolver(treeid, speciesTree, geneTree, distances, geneSeq, show_
 
 	$(recipient).html(loading_img);
 
-	$(recipient).load(ete_webplugin_URL+'/polytomysolver_dropdown', params,
+	$(recipient).load(ete_webplugin_URL+'/polytomysolver', params,
 
 			function( response, status, xhr ) {
 

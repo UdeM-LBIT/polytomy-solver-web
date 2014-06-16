@@ -41,131 +41,13 @@ def webplugin_app(environ, start_response, queries):
     #(WSGI needs this)
     #start_response('202 OK', [('content-type', 'text/plain')])
 
-    # asked_methods are overriden by the base functions found in WebTreeApplication
+    # NOTE : asked_methods are overriden by the base functions found in WebTreeApplication
     # (ex : catching "draw" here will not be executed)
 
     #
     # PolytomySolver
     #
     if asked_method[1]=="polytomysolver":
-        speciesTree = queries.get("speciesTree", [None])[0]
-        geneTree = queries.get("geneTree", [None])[0]
-        geneSeq = queries.get("geneSeq", [None])[0]
-        distances = queries.get("distances", [None])[0]
-        sp_tol = queries.get("sp_tol", [None])[0]
-        gn_ensembl_tree = queries.get("gn_ensembl", [None])[0]
-
-        # Use the ensembl tree of life?
-        if sp_tol != "0":
-            f = open(WEB_APP_FOLDER_PATH+'/ressources/ensembl.nw', 'r')
-            speciesTree = f.read()
-
-        # Use an ensembl gene tree?
-        if gn_ensembl_tree:
-            geneTree = TreeUtils.fetch_ensembl_genetree_by_id(gn_ensembl_tree)
-
-        # PolytomySolver v1.2.4
-        # PolytomySolver(string speciesTreeString, string geneTreeString, string strDistances, string _rerootMode, bool _testEdgeRoots, bool _hasNonnegativeDistanceFlag, bool _useCache)
-        # (where rerootMode = "none","findbestroot" or "outputallroots")
-        #tree = PolytomySolver(str(speciesTree), geneTree, distances, "none", False, False, True)
-        polytomysolver_out = PolytomySolver(str(speciesTree), geneTree, distances, "outputallroots", False, False, True)
-        trees_out = []
-        trees_processed = []
-
-        # Get list of trees
-        for line in polytomysolver_out.splitlines():
-            if line[0] != "#":
-               trees_out.append(line)
-
-
-        for tree in trees_out:
-            tree_obj = TreeClass(tree)
-            speciesTree_obj = TreeClass(speciesTree)
-
-            tree_obj.set_species(sep="__",pos="postfix")
-            tree_obj.set_genes(sep="__",pos="prefix")
-
-            # Note : lcamapping checks if tree_obj.specie == speciesTree_obj.name
-            # (might want to do the case sanitization in ete.js)
-            for node in speciesTree_obj:
-                node.name = node.name.lower()
-
-            lcamap = TreeUtils.lcaMapping(tree_obj, speciesTree_obj)
-
-            # Reconcile gene and species tree
-            TreeUtils.reconcile(tree_obj, lcamap)
-            trees_processed.append(tree_obj)
-
-        # Load the first tree
-        if not application._load_tree(treeid, trees_processed[0]):
-            return "Cannot load the tree: %s %treeid"
-
-        t = application._treeid2tree[treeid]
-
-        # Phyml - v20140520
-        # Calculate the log likelihood of the output tree and the given gene sequence data
-        # TODO : Wrap this into a separate function that will give log likelihood for a given tree and set of sequences
-        if (geneSeq != None):
-            # Write sequences to file
-            with open("utils/phyml_tmp/%s.nex"%treeid, "w") as seqs_file:
-                seqs_file.write(geneSeq)
-
-            with open("utils/phyml_tmp/%s.newick"%treeid, "w") as newick_file:
-                for tree in trees_processed:
-                    # Write newick for trees in a .newick file named after the treeid of the first tree
-                    # Convert all tree labels to gene names only
-                    t_tmp = tree.copy()
-                    leaves = t_tmp.get_leaves()
-                    for leaf in leaves:
-                        leaf.name=leaf.genes
-                    newick_file.write(t_tmp.write(features=[])+"\n")
-
-            # Set everything up to run phyml on the sequences and get the log likelihood for tree
-            input_seqs = "%s/utils/phyml_tmp/%s.nex" %(WEB_APP_FOLDER_PATH, treeid)
-            input_trees = "%s/utils/phyml_tmp/%s.newick" %(WEB_APP_FOLDER_PATH, treeid)
-
-            phyml = _Phyml.PhymlCommandline(input=input_seqs, input_tree=input_trees, bootstrap=0)
-
-            # NOTE : wrapper (for reasons unknown) adds the '=' character with the optimize params ('-o=none' and not '-o none')
-            # which does not play nice with the newer phyml release
-
-	    phyml.set_parameter("-o","none")
-	    phyml.program_name = 'utils/phyml'
-
-            # Run phyml
-            #NOTE : Try/Catch block?
-            phyml()
-
-            # Fetch phyml output
-            output_stats = "%s/utils/phyml_tmp/%s.nex_phyml_stats.txt" %(WEB_APP_FOLDER_PATH, treeid)
-            output_tree = "%s/utils/phyml_tmp/%s.nex_phyml_tree.txt" %(WEB_APP_FOLDER_PATH, treeid)
-
-            ll_keyword = ". Log-likelihood:"
-            t.add_feature("log_likelihood", "N/A")
-
-            with open(output_stats) as search:
-                for line in search:
-                    if ". Log-likelihood:" in line:
-                        line = line.replace(ll_keyword, "")
-                        t.log_likelihood = line.strip()
-
-            # Clean up tmp files
-            os.remove(input_seqs)
-            os.remove(input_trees)
-            os.remove(output_stats)
-            os.remove(output_tree)
-
-        # NOTE : possibly inject dropdown through substring replacement?
-        return application._custom_tree_renderer(t, treeid, application)
-
-
-
-
-
-    #
-    # PolytomySolver
-    #
-    if asked_method[1]=="polytomysolver_dropdown":
         speciesTree = queries.get("speciesTree", [None])[0]
         geneTree = queries.get("geneTree", [None])[0]
         geneSeq = queries.get("geneSeq", [None])[0]
