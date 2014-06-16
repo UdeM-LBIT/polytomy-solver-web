@@ -4,8 +4,8 @@
 <title>LBIT</title>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <!-- Import scripts in this specific order -->
-<script src="http://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
-<script src="http://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.10.4/jquery-ui.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.10.4/jquery-ui.min.js"></script>
 <script src="webplugin/ete.js"></script>
 <script>
 /* YOU MUST SET THIS VARIABLE */
@@ -41,7 +41,7 @@ var ete_webplugin_URL = "cgi-bin/webplugin.py"
 
     <div style="clear:both;" >
         <!-- draw_tree(treeid, newick, container) -->
-        <input type='submit' value='Draw tree'  onClick='draw_tree(random_tid(), $("#tree").val(), "#img1", "species") ;'>
+        <input type='submit' value='Draw tree'  onClick='draw_tree(random_tid(), $("#tree").val(), "#img1","name") ;'>
         <input type='button' value='Clear' onClick='$(".ete_image").html("");'>
     </div>
 </div>

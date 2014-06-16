@@ -128,7 +128,9 @@ def webplugin_app(environ, start_response, queries):
 
             # NOTE : wrapper (for reasons unknown) adds the '=' character with the optimize params ('-o=none' and not '-o none')
             # which does not play nice with the newer phyml release
-            phyml.program_name = './"utils/phyml" -o none'
+            
+	    phyml.set_parameter("-o","none")
+	    phyml.program_name = 'utils/phyml'
 
             # Run phyml
             #NOTE : Try/Catch block?
@@ -242,7 +244,8 @@ def webplugin_app(environ, start_response, queries):
 
             # NOTE : wrapper (for reasons unknown) adds the '=' character with the optimize params ('-o=none' and not '-o none')
             # which does not play nice with the newer phyml release
-            phyml.program_name = './"utils/phyml" -o none'
+	    phyml.set_parameter("-o","none")
+            phyml.program_name = 'utils/phyml'
 
             # Run phyml
             #NOTE : Try/Catch block?
@@ -294,25 +297,6 @@ def webplugin_app(environ, start_response, queries):
 
         return trees_dropdown
 
-
-    #
-    # Draw (cgi)
-    #
-    if asked_method[1]=="draw_cgi":
-        tree = queries.get("tree", [None])[0]
-        treeid = queries.get("treeid", [None])[0]
-
-        t = TreeClass(tree)
-
-        if not application._load_tree(treeid, t):
-            return "Cannot load the tree: %s %treeid"
-
-        t = application._treeid2tree[treeid]
-
-        return application._custom_tree_renderer(t, treeid, application)
-
-    else:
-        return "Nothing to see here. Move along..."
 
 
 # ==============================================================================
@@ -621,7 +605,7 @@ def tree_renderer(tree, treeid, application):
     leaves = tree.get_leaves()
     formated_features =  {
             # feature_name: ["Description", face column position, text_size, color, text_prefix, text_suffix ]
-            #"name": ["name", len(leaves), 0, 11, "#000000", "", ""],
+            "name": ["name", len(leaves), 0, 11, "#000000", "", ""],
             #"spname": ["Species name", len(leaves), 1, 11, "#f00000", " Species:", ""],
             }
 

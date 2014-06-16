@@ -5,10 +5,10 @@
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <!-- Import scripts in this specific order -->
 <!-- <script src="webplugin/jquery-1.4.2.min.js"></script> -->
-<script src="http://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
 <!-- <script src="webplugin/jquery-ui-1.8.4.custom.min.js"></script> -->
-<script src="http://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.10.4/jquery-ui.min.js"></script>
-<script src="http://cdnjs.cloudflare.com/ajax/libs/qtip2/2.2.0/jquery.qtip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.10.4/jquery-ui.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qtip2/2.2.0/jquery.qtip.min.js"></script>
 <script src="webplugin/ete.js"></script>
 <script>
 /* YOU MUST SET THIS VARIABLE */
@@ -28,7 +28,7 @@ $(document).ready(function () {
 });
 </script>
 <link rel="stylesheet" type="text/css" href="webplugin/ete.css" >
-<link rel="stylesheet" type="text/css" href="http://cdnjs.cloudflare.com/ajax/libs/qtip2/2.2.0/jquery.qtip.min.css" >
+<link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/qtip2/2.2.0/jquery.qtip.min.css" >
 </head>
 <body>
 <i>Menu</i>  <b>::</b> <a href="index.html">Draw Tree</a><br><br>
@@ -1121,7 +1121,7 @@ end;</textarea>
 
 <div style="clear:both;" >
     <!-- draw_tree(treeid, newick, container) -->
-    <input type='submit'  value='Draw tree'  onClick='polytomysolver(random_tid(), $("#speciesTree").val(),$("#geneTree").val() ,$("#distances").val(), $("#geneSeq").val(),"species", $("#sp_tol:checked").length,$("#gn_ensembl").val(),"#polytomysolver_dropdown");'>
+    <input type='submit'  value='Draw tree'  onClick='polytomysolver(random_tid(), $("#speciesTree").val(),$("#geneTree").val() ,$("#distances").val(), $("#geneSeq").val(),"name", $("#sp_tol:checked").length,$("#gn_ensembl").val(),"#polytomysolver_dropdown");'>
 
     <input type='button' value='Clear' onClick='$(".ete_image").html("");'>
 </div>
