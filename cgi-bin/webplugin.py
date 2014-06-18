@@ -16,7 +16,7 @@ import wsgiref.handlers
 import json
 
 # toolkits
-from ete2 import WebTreeApplication, PhyloTree, faces, Tree, TreeView, TreeStyle
+from ete2 import WebTreeApplication, PhyloTree, faces, Tree, TreeStyle
 from Bio.Phylo.Applications import _Phyml
 
 # project
