@@ -8,10 +8,16 @@ from ete2 import TreeNode
 from ete2.phylo import spoverlap
 import types
 import collections
+import copy
 
+try:
+	import cPickle as pickle
+except:
+	import pickle
 class TreeClass(TreeNode):
 
 	DEFAULT_SPECIE="Unknown"
+	DEFAULT_NAME= "NoName"
 	DEFAULT_GENE="Unknown"
 	AD=1
 	LOST=-1
@@ -28,18 +34,110 @@ class TreeClass(TreeNode):
 		children_list=self.get_children()
 		if(i<len(children_list)):
 			return children_list[i]
-		return None
+		else:
+			raise IndexError("Index out of bound, Can't access the child at index: %i"%i)
 
+
+	def copy(self, method="cpickle", nw_features=[], nw_format_root_node=True, binary_correct=False):
+		""" .. override of ete TreeNode original copy
+
+		Returns a copy of the current node.
+
+		:var cpickle method: Protocol used to copy the node
+		structure. The following values are accepted:
+
+			- "newick": Tree topology, node names, branch lengths and
+			branch support values will be copied by as represented in
+			the newick string (copy by newick string serialisation).
+
+			- "newick-extended": Tree topology and all node features
+			will be copied based on the extended newick format
+			representation. Only node features will be copied, thus
+			excluding other node attributes. As this method is also
+			based on newick serialisation, features will be converted
+			into text strings when making the copy.
+
+			- "cpickle": The whole node structure and its content is
+			cloned based on cPickle object serialisation (slower, but
+			recommended for full tree copying)
+
+			- "deepcopy": The whole node structure and its content is
+			copied based on the standard "copy" Python functionality
+			(this is the slowest method but it allows to copy complex
+			objects even if attributes point to lambda functions,
+			etc.)
+
+		"""
+		if method=="newick":
+			new_node = self.__class__(self.write(features=["name"], format_root_node=True))
+		elif method=="newick-extended":
+			new_node = self.__class__(self.write(features=nw_features, format_root_node=nw_format_root_node))
+		elif method == "deepcopy":
+			parent = self.up
+			self.up = None
+			new_node = copy.deepcopy(self)
+			self.up = parent
+		elif method == "cpickle":
+			parent = self.up
+			self.up = None
+			new_node = pickle.loads(pickle.dumps(self, 2))
+			self.up = parent
+
+		elif method == 'simplecopy':
+			parent = self.up
+			self.up = None
+			new_node = self._simple_copy(nw_features)
+			self.up = parent
+
+		else:
+			raise ValuerError("Invalid copy method")
+
+		return self._correct_copy(new_node) if binary_correct else new_node
+
+
+	def _simple_copy(self, features=[]):
+		"""Simple copy of a node by a recursive call"""
+		root= self._copy_node(features)
+		for node in self.get_children():
+			root.add_child(node._simple_copy(features))
+		return root
+
+
+	def _copy_node(self, features=[]):
+		"Copy a node and its features to a new node"
+		copy=TreeClass()
+		if not features:
+			features= self.features
+		for feature in features:
+			if(self.has_feature(feature)):
+				copy.add_feature(feature, getattr(self,feature))
+		return copy
+
+
+	def _correct_copy(self, copy):
+		"""Correct the structure of new node copied using newick method"""
+		for node in copy.traverse("postorder"):
+			if not node.is_root() and (node.name not in list(self.get_descendant_name())):
+				node.detach()
+			if node.is_internal() and len(node.get_children())<2:
+				child=node.get_child_at(0)
+				if(child.is_leaf()):
+					ori_node=self.search_nodes(name=child.name)[0].up
+					print ori_node
+				else:
+					ori_node=self.get_common_ancestor(child.get_leaf_name()).up
+				node.up.replace_child(node, ori_node.copy("newick-extended"))
+		return copy
 
 	def has_ancestor(self, ancestor):
-		"""Check if "ancestor" is an ancestor of the current TreeNode"""
+		"""Check if "ancestor" is an ancestor of the current Node"""
 		ancestor = self.translate_nodes(ancestor)
 		ancestors=self.get_ancestors()
 		return True if len(list(filter(lambda x : x in ancestors, ancestor)))==len(ancestor) else False
 
 
 	def has_descendant(self, descendant):
-		"""Check if "descendant" is a descendant of the current TreeNode"""
+		"""Check if "descendant" is a descendant of the current Node"""
 		descendant=self.translate_nodes(descendant)
 		descendants=self.get_descendants()
 		return True if len(list(filter(lambda x : x in descendants, descendant)))==len(descendant) else False
@@ -52,7 +150,7 @@ class TreeClass(TreeNode):
 			target_nodes = target_nodes[0]
 
 		try:
-			target_nodes = [n if isinstance(n, TreeNode) else self.search_nodes(name=n)[0] for n in target_nodes]
+			target_nodes = [n if isinstance(n, self.__class__) else self.search_nodes(name=n)[0] for n in target_nodes]
 			return target_nodes
 
 		except (ValueError, IndexError) as e:
@@ -68,6 +166,7 @@ class TreeClass(TreeNode):
 				removing_child=self.children[i]
 				if(replace_if_exist):
 					self.children[i]=newNode
+					newNode.up=self
 			else:
 				self.add_child(newNode)
 		except ValueError, e:
@@ -105,7 +204,7 @@ class TreeClass(TreeNode):
 		return child_number +1 if self.is_leaf() else child_number
 
 
-	def set_species(self, speciesMap=None, sep="_", pos="postfix", use_fn=None):
+	def set_species(self, speciesMap=None, sep="_", capitalize=False, pos="postfix", use_fn=None):
 
 		"""Set species feature for each leaf in the tree.
 
@@ -116,17 +215,18 @@ class TreeClass(TreeNode):
 		argument fn: Pointer to a parsing python function that receives a node as first argument and returns the species name.
 
 		"""
+		if speciesMap is not None:
+			for node in self.traverse():
+				node.add_features(species=speciesMap.get(node.name, TreeClass.DEFAULT_SPECIE))
+		else:
+			for leaf in self:
+				if use_fn is not None :
+					leaf.add_features(species=use_fn(leaf))
+				else:
+					leaf.add_features(species=leaf._extractFeatureName(separator=sep, order=pos, cap=capitalize))
 
-		for leaf in self:
-			if speciesMap is not None:
-				leaf.add_features(species=speciesMap.get(leaf.name, TreeClass.DEFAULT_SPECIE))
-			elif use_fn is not None :
-				leaf.add_features(species=use_fn(leaf))
-			else:
-				leaf.add_features(species=leaf._extractFeatureName(separator=sep, order=pos))
 
-
-	def set_genes(self, genesMap=None, sep="_", pos="postfix", use_fn=None):
+	def set_genes(self, genesMap=None, sep="_", capitalize=False, pos="postfix", use_fn=None):
 
 		"""Set gene feature for each leaf in the tree.
 
@@ -137,25 +237,26 @@ class TreeClass(TreeNode):
 		argument fn: Pointer to a parsing python function that receives a node as first argument and returns the genes name.
 
 		"""
-
 		for leaf in self:
 			if genesMap is not None:
 				leaf.add_features(genes=genesMap.get(leaf.name, TreeClass.DEFAULT_GENE))
 			elif use_fn is not None :
 				leaf.add_features(genes=use_fn(leaf))
 			else:
-				leaf.add_features(genes=leaf._extractFeatureName(separator=sep, order=pos))
+				leaf.add_features(genes=leaf._extractFeatureName(separator=sep, order=pos,cap=capitalize))
 
 
 	def get_species(self, sep=","):
-		"""Return the a list of species for the current node"""
+		"""Return the list of species for the current node"""
 		return self.species.split(sep)
 
+
 	def get_genes(self, sep=","):
-		"""Return the a list of genes for the current node"""
+		"""Return the list of genes for the current node"""
 		return self.genes.split(sep)
 
-	def _extractFeatureName(self, separator=None, order=None):
+
+	def _extractFeatureName(self, separator=None, order=None, cap=False):
 		"""Private function, extract feature name (e.g. genes, species) based on the node name"""
 		l=self.name.split(separator)
 		if len(l)>1 and order=="postfix":
@@ -164,14 +265,18 @@ class TreeClass(TreeNode):
 			feature=l[0]
 		else:
 			feature=self.name
+		if cap:
+			feature=self.__class__._capitalize(feature)
 		return feature
 
 
-	def treeContraction(self, seuil=0):
-		"""Contract tree based on the dist between node, using a threshold. Any branches shorter than "seuil" will be removed """
-		for node in self.traverse():
-			if(node.support<seuil):
-				node.delete()
+	def contract_tree(self, seuil=0, feature='support'):
+		"""Contract tree based on the dist between node, using a threshold. Any branches with a support less than "seuil" will be removed """
+		for node in self.traverse("postorder"):
+			if(feature=='support' and node.has_feature('support') and node.is_internal() and node.support<seuil):
+				node.toPolytomy()
+			if(feature=='dist' and node.has_feature('dist') and node.is_internal() and node.dist<seuil):
+				node.toPolytomy()
 
 
 	def restrictToSpecies(self, species=[]):
@@ -199,12 +304,39 @@ class TreeClass(TreeNode):
 		return self.search_nodes(**condition)
 
 
+	def is_polytomy(self):
+		"""
+        Return True if current node is a polytomy.
+    	"""
+		return len(self.children)>2
+
+
+	def is_binary(self):
+		"""
+        Return True if current node is a binary node.
+    	"""
+		return len(self.children)==2
+
+
+	def is_internal(self):
+		"""
+        Return True if current node is an internal node.
+    	"""
+		return (not self.is_root() and not self.is_leaf())
+
+
 	def get_all_features(self):
-		"""Return all the features of a node in a list object"""
+		"""Return all the features of all nodes under self in a set"""
 		features_list=[]
 		for node in self.traverse():
 			features_list.extend(list(node.features))
 		return set(features_list)
+
+
+	def has_feature(self, feature):
+		"""Return weither or not this node has feature in its list of features"""
+		return (feature in self.features)
+
 
 	def __repr__(self):
 		return "Tree Class '%s' (%s)" %(self.name, hex(self.__hash__()))
@@ -226,6 +358,7 @@ class TreeClass(TreeNode):
 		"""
 		return spoverlap.get_evol_events_from_leaf(self, sos_thr=sos_thr)
 
+
 	def get_descendant_evol_events(self, sos_thr=0.0):
 		""" Returns a list of **all** duplication and speciation
 		events detected after this node. Nodes are assumed to be
@@ -237,20 +370,110 @@ class TreeClass(TreeNode):
 		"""
 		return spoverlap.get_evol_events_from_root(self, sos_thr=sos_thr)
 
-	def is_monophyletic(specieSet):
+
+	def is_monophyletic(self, specieSet):
 		""" Returns True id species names under this node are all
 		included in a given list or set of species names."""
+
 		if type(specieSet) != set:
 			specieSet = set(specieSet)
 		return set(self.get_species()).issubset(species)
 
 
-	#"""Should I implement this???"""
-	def delete_single_child_descendant(self,*args, **kargs): pass
+	def has_polytomies(self):
+		"""Return whether or not this tree has polytomies
+		"""
+		return len(self.get_polytomies())>0
 
 
-	#"""Too Lazy to do that, let just ignore it for the moment"""
-	def insertNodeBetween(): pass
+	def get_children_species(self):
+		""" Return the species list of the children under this particular node
+		"""
+		c_species= set([])
+		for node in self.get_children():
+			c_species.add(node.species)
+		return c_species
+
+
+	def get_children_name(self):
+		""" Return the names of the children under this particular node
+		"""
+		c_names= set([])
+		for node in self.get_children():
+			c_names.add(node.name)
+		return c_names
+
+
+	def get_descendant_species(self):
+		""" Return the species list of the descendants under this particular node
+		"""
+		c_species= set([])
+		for node in self.get_descendants():
+			c_species.add(node.species)
+		return c_species
+
+
+	def get_leaf_species(self, is_leaf_fn=None):
+		""" Return the species list of the leave under this node
+		"""
+		return set([leaf.species for leaf in self.iter_leaves(is_leaf_fn=is_leaf_fn)])
+
+
+	def get_descendant_name(self):
+		""" Return the names of the descendants under this particular node
+		"""
+		c_names= set([])
+		for node in self.get_descendants():
+			c_names.add(node.name)
+		return c_names
+
+
+	def get_ancestor_name(self):
+		"""Return the names of all the ancestor of this node in a set
+		"""
+		c_names=set([])
+		parent=self.up
+		while parent is not None:
+			c_names.add(parent.name)
+			parent=parent.up
+		return c_names
+
+
+	def get_leaf_name(self, is_leaf_fn=None):
+		return self.get_leaf_names(is_leaf_fn)
+
+
+	def delete_single_child_internal(self):
+		for node in self.traverse("postorder"):
+			if(node.is_internal() and len(node.children)<2):
+				node.delete()
+
+
+	def iter_polytomies(self, is_polytomy_fn=None, strategy="postorder"):
+		"""
+		Returns an iterator over the polytomies starting from the curent node
+		:argument None is_polytomy_fn: See :func:`TreeNode.traverse` for
+		documentation.
+		"""
+		for n in self.traverse(strategy=strategy):
+			if not is_polytomy_fn:
+				if n.is_polytomy():
+					yield n
+			else:
+				if is_polytomy_fn(n):
+					yield n
+
+
+	def get_polytomies(self, ind=-1 ,is_polytomy_fn=None):
+		"""
+		Return a list of polytomies under this node
+		"""
+		polytomies= [pol for pol in self.iter_polytomies(is_polytomy_fn=is_polytomy_fn)]
+		if(ind>-1 and ind<len(polytomies)):
+			return polytomies[ind]
+		else:
+			return polytomies
+
 
 	@classmethod
 	def import_from_PhyloxmlTree(cls,phyloxml):
@@ -313,6 +536,19 @@ class TreeClass(TreeNode):
 		return TreeClass(phyloxml.write(features=[],format_root_node=True))
 
 
+	def replace_child(self, child_to_replace, new_child):
+		if (self is None) or (child_to_replace not in self.get_children()):
+			raise ValueError("Node is None or child_to_replace not valid")
+		else :
+			self.remove_child(child_to_replace)
+			self.add_child(new_child)
+			#print "***node swap"
+			#print "to replace parent ", child_to_replace.up
+			#print "new child parent ", new_child.up
+			#print "real parent ", self
+			return self
+
+
 	def writeSeqToFasta(self, out='seq.fasta', comment=1):
 		if("sequence" in self.get_all_features()):
 			with open(out, 'w') as outfile:
@@ -327,3 +563,8 @@ class TreeClass(TreeNode):
 						id=id+"\n"
 						outfile.write(id)
 						outfile.write(seq)
+
+
+	@staticmethod
+	def _capitalize(line):
+		return "".join([line[0].upper(), line[1:]])
