@@ -16,7 +16,7 @@ import wsgiref.handlers
 import json
 
 # toolkits
-from ete2 import WebTreeApplication, PhyloTree, faces, Tree
+from ete2 import WebTreeApplication, PhyloTree, faces, Tree, TreeView, TreeStyle
 from Bio.Phylo.Applications import _Phyml
 
 # project
@@ -67,8 +67,6 @@ def webplugin_app(environ, start_response, queries):
 
         # PolytomySolver v1.2.4
         # PolytomySolver(string speciesTreeString, string geneTreeString, string strDistances, string _rerootMode, bool _testEdgeRoots, bool _hasNonnegativeDistanceFlag, bool _useCache)
-        # (where rerootMode = "none","findbestroot" or "outputallroots")
-        #tree = PolytomySolver(str(speciesTree), geneTree, distances, "none", False, False, True)
         if gn_reroot_mode in ["none","findbestroot","outputallroots"]:
             polytomysolver_out = PolytomySolver(str(speciesTree), geneTree, distances, gn_reroot_mode, False, False, True)
         else:
@@ -81,7 +79,6 @@ def webplugin_app(environ, start_response, queries):
         for line in polytomysolver_out.splitlines():
             if line[0] != "#":
                trees_out.append(line)
-
 
         for tree in trees_out:
             tree_obj = TreeClass(tree)
@@ -485,6 +482,8 @@ def tree_renderer(tree, treeid, application):
     tree.add_feature("bsize", "8")
     tree.dist = 0
 
+
+
     # This are the features that I wanto to convert into image
     # faces. I use an automatic function to do this. Each element in
     # the dictionary is a list that contains the information about how
@@ -686,6 +685,11 @@ if __name__ == '__main__':
 	# Lets now apply our custom tree loader function to the main
 	# application
 	application.set_tree_loader(my_tree_loader)
+
+        # Set tree style
+        ts = TreeStyle()
+        ts.show_scale = False
+	application.set_tree_style(ts)
 
 	# And our layout as the default one to render trees
 	application.set_default_layout_fn(main_layout)
