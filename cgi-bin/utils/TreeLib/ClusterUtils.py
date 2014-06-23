@@ -140,9 +140,7 @@ def condense_node_order(matrice, smallest_index, node_order, method='upgma'):
 	pos = [0,1]
 
 	for ind in pos:
-		if nodes[ind].get_children():
-			pass#n.add_features(Length= d - n.get_child_at().TipLength)
-		else:
+		if nodes[ind].is_leaf():
 			nodes[ind].add_features(Length=dist[ind])
 		nodes[ind].add_features(TipLength = dist[ind])
 	#combine the two nodes into a new TreeNode object
@@ -222,7 +220,7 @@ def UPGMA_cluster(matrice, node_order, large_number, upgma_depth=None):
 	return tree, matrice, smallest_index
 
 
-def TreeCluster(matrice, node_order, large_number, depth=None, method='upgma'):
+def treeCluster(matrice, node_order, large_number, depth=None, method='upgma'):
 	if(method.lower()=='nj'):
 		return NJ_cluster(matrice, node_order, large_number, nj_depth=depth)
 	else :
@@ -255,10 +253,9 @@ def distMatProcessor(dist_file, maxValue):
 
 def makeFakeDstMatrice(n, dmin, dmax, maxVal):
 	"""Create a fake distance matrice"""
-	import numpy as np
-	b = (dmax-dmin)*np.random.random_sample(size=(n,n))+dmin
+	b = (dmax-dmin)*numpy.random.random_sample(size=(n,n))+dmin
 	b_sym=(b + b.T)/2
-	np.fill_diagonal(b_sym, maxVal)
+	numpy.fill_diagonal(b_sym, maxVal)
 	return b_sym
 
 

@@ -14,6 +14,7 @@ try:
 	import cPickle as pickle
 except:
 	import pickle
+
 class TreeClass(TreeNode):
 
 	DEFAULT_SPECIE="Unknown"
@@ -60,7 +61,7 @@ class TreeClass(TreeNode):
 			- "cpickle": The whole node structure and its content is
 			cloned based on cPickle object serialisation (slower, but
 			recommended for full tree copying)
-
+	
 			- "deepcopy": The whole node structure and its content is
 			copied based on the standard "copy" Python functionality
 			(this is the slowest method but it allows to copy complex
@@ -86,7 +87,7 @@ class TreeClass(TreeNode):
 		elif method == 'simplecopy':
 			parent = self.up
 			self.up = None
-			new_node = self._simple_copy(nw_features)
+			new_node = self._recur_simple_copy(nw_features)
 			self.up = parent
 
 		else:
@@ -95,12 +96,33 @@ class TreeClass(TreeNode):
 		return self._correct_copy(new_node) if binary_correct else new_node
 
 
-	def _simple_copy(self, features=[]):
+	def _recur_simple_copy(self, features=[]):
 		"""Simple copy of a node by a recursive call"""
 		root= self._copy_node(features)
 		for node in self.get_children():
-			root.add_child(node._simple_copy(features))
+			root.add_child(node._recur_simple_copy(features))
 		return root
+
+
+	def _iter_simple_copy(self, features=[]):
+		"""Iteratif simple copy, this can be optimized"""
+		ori_parents=[self]
+		copy_parents=[self._copy_node(features)]
+
+		while ori_parents:
+			next_parent=[]
+			next_copy_parent=[]
+			for i in xrange(len(ori_parents)):
+				parent= ori_parents[i]
+				root=copy_parents[i]
+				for node in parent.get_children():
+					copy_node=node._copy_node(features)
+					root.add_child(copy_node)
+					next_parent.append(node)
+					next_copy_parent.append(copy_node)
+			ori_parents=next_parent
+			copy_parents=next_copy_parent
+		return root.get_tree_root()
 
 
 	def _copy_node(self, features=[]):
@@ -122,7 +144,7 @@ class TreeClass(TreeNode):
 			if node.is_internal() and len(node.get_children())<2:
 				child=node.get_child_at(0)
 				if(child.is_leaf()):
-					ori_node=self.search_nodes(name=child.name)[0].up
+					ori_node=(self&(child.name)).up
 					print ori_node
 				else:
 					ori_node=self.get_common_ancestor(child.get_leaf_name()).up
@@ -150,7 +172,7 @@ class TreeClass(TreeNode):
 			target_nodes = target_nodes[0]
 
 		try:
-			target_nodes = [n if isinstance(n, self.__class__) else self.search_nodes(name=n)[0] for n in target_nodes]
+			target_nodes = [n if isinstance(n, self.__class__) else self&(n) for n in target_nodes]
 			return target_nodes
 
 		except (ValueError, IndexError) as e:
@@ -225,9 +247,8 @@ class TreeClass(TreeNode):
 				else:
 					leaf.add_features(species=leaf._extractFeatureName(separator=sep, order=pos, cap=capitalize))
 
-
+	
 	def set_genes(self, genesMap=None, sep="_", capitalize=False, pos="postfix", use_fn=None):
-
 		"""Set gene feature for each leaf in the tree.
 
 		:argument genesMap: Default=None. genesMap is a Map of genes for the geneTree. Each key is a leaf name from the genetree and the value is the corresponding genes name
@@ -247,12 +268,14 @@ class TreeClass(TreeNode):
 
 
 	def get_species(self, sep=","):
-		"""Return the list of species for the current node"""
+		"""Return the list of species for the current node 
+		(under the current node after reconciliation)"""
 		return self.species.split(sep)
 
 
 	def get_genes(self, sep=","):
-		"""Return the list of genes for the current node"""
+		"""Return the list of genes for the current node
+		(under the current node after reconciliation)"""
 		return self.genes.split(sep)
 
 
@@ -270,14 +293,13 @@ class TreeClass(TreeNode):
 		return feature
 
 
-	def contract_tree(self, seuil=0, feature='support'):
-		"""Contract tree based on the dist between node, using a threshold. Any branches with a support less than "seuil" will be removed """
+	def contract_tree(self, seuil=0, feature='support', break_tree_topo=False):
+		"""Contract tree based on the dist between node, using a threshold. `contract_tree` proceed bottom-up. Any branches with a support less than "seuil" will be removed 
+		if `break_tree_topo` is set to True, all the branch under this node will be recursively removed"""
 		for node in self.traverse("postorder"):
-			if(feature=='support' and node.has_feature('support') and node.is_internal() and node.support<seuil):
-				node.toPolytomy()
-			if(feature=='dist' and node.has_feature('dist') and node.is_internal() and node.dist<seuil):
-				node.toPolytomy()
-
+			if(node.has_feature(feature) and node.is_internal() and getattr(node,feature)<seuil):
+				node.toPolytomy(break_tree_topo)
+		
 
 	def restrictToSpecies(self, species=[]):
 		"""Restrict the current genetree to the list of species passed in argument"""
@@ -291,17 +313,20 @@ class TreeClass(TreeNode):
 			print "Check if this tree have species as feature"
 
 
-	def toPolytomy(self):
+	def toPolytomy(self, break_tree_topo=False):
 		"""Move every leaves to the node by deleting all the internals nodes"""
-		for node in self.traverse():
-			if(not node.is_leaf() and not node.is_root()):
-				node.delete()
+		if(break_tree_topo):
+			for node in self.traverse():
+				if(not node.is_leaf() and not node.is_root()):
+					node.delete()
+		else:
+			self.delete()
 
 
 	def get_leaves_by_feature(self, **condition):
 		"""Return leaves that match the features passed as argument"""
-		condition['children']=[]
-		return self.search_nodes(**condition)
+		match= self.search_nodes(**condition)
+		return [node for node in match if node.is_leaf()]
 
 
 	def is_polytomy(self):
@@ -342,6 +367,32 @@ class TreeClass(TreeNode):
 		return "Tree Class '%s' (%s)" %(self.name, hex(self.__hash__()))
 
 
+	def reroot(self, root_node=True):
+		"""reroot tree at each node"""
+		#self.label_internal_node()
+		for node in self.iter_descendants():
+			c_tree= self.copy("newick-extended", nw_format_root_node=True)
+			#c_node =c_tree&node.name
+			c_node = c_tree.get_common_ancestor(node.get_leaf_name()) if node.is_internal() else c_tree&node.name
+			c_tree.set_outgroup(c_node)
+			#case where we root at the node and not at the branch
+			if(root_node and not node.is_leaf()):
+				root= c_tree.get_tree_root()
+				#new_child= [child for child in root.get_children() if child !=node.name][0]
+				#rooting_node = [child for child in root.get_children() if child.name ==node.name][0]
+				new_child= [child for child in root.get_children() if set(child.get_leaf_name()).symmetric_difference(set(node.get_leaf_name()))][0]
+				rooting_node = [child for child in root.get_children() if child!=new_child][0]
+				c_tree= rooting_node.detach()
+				new_child.detach()
+				#new_child.label_internal_node()
+				c_tree.add_child(new_child)
+				yield c_tree
+
+			elif not root_node:
+				yield c_tree
+
+
+
 	def get_my_evol_events(self, sos_thr=0.0):
 		""" Returns a list of duplication and speciation events in
 		which the current node has been involved. Scanned nodes are
@@ -369,15 +420,15 @@ class TreeClass(TreeNode):
 		T. Genome Biol. 2007;8(6):R109.
 		"""
 		return spoverlap.get_evol_events_from_root(self, sos_thr=sos_thr)
-
+	
 
 	def is_monophyletic(self, specieSet):
-		""" Returns True id species names under this node are all
+		""" Returns True if species names under this node are all
 		included in a given list or set of species names."""
 
 		if type(specieSet) != set:
 			specieSet = set(specieSet)
-		return set(self.get_species()).issubset(species)
+		return self.get_leaf_species().issubset(specieSet)
 
 
 	def has_polytomies(self):
@@ -473,6 +524,16 @@ class TreeClass(TreeNode):
 			return polytomies[ind]
 		else:
 			return polytomies
+
+	
+	def label_internal_node(self):
+		"""Label the internal node of a specietree for the polysolver algorithm"""
+		count=1
+		for node in self.traverse(strategy='levelorder'):
+			if not node.is_leaf() and node.name in [TreeClass.DEFAULT_NAME, TreeClass.DEFAULT_GENE]:
+				node.name="%i"%(count)
+				count+=1
+		return self
 
 
 	@classmethod

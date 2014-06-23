@@ -21,7 +21,7 @@ from Bio.Phylo.Applications import _Phyml
 
 # project
 from algorithms.libpolytomysolver import PolytomySolver
-from utils.TreeUtils import TreeUtils, TreeClass
+from utils.TreeLib import TreeUtils, TreeClass
 
 # start virtual display
 xvfb=Display(visible=0, size=(1024, 768)).start()
@@ -55,6 +55,7 @@ def webplugin_app(environ, start_response, queries):
         sp_tol = queries.get("sp_tol", [None])[0]
         gn_ensembl_tree = queries.get("gn_ensembl", [None])[0]
         gn_reroot_mode = queries.get("gn_reroot_mode", [None])[0]
+        gn_support_threshold = queries.get("gn_support_threshold", [None])[0]
 
         # Use the ensembl tree of life?
         if sp_tol != "0":
@@ -65,10 +66,14 @@ def webplugin_app(environ, start_response, queries):
         if gn_ensembl_tree:
             geneTree = TreeUtils.fetch_ensembl_genetree_by_id(gn_ensembl_tree)
 
+        # Contract low support branches (might want to add a y/n checkbox instead of running everytime with 0 as default)
+        gn_tree_obj = TreeClass(TreeUtils.newick_preprocessing(geneTree)[0])
+        gn_tree_obj.contract_tree(seuil=float(gn_support_threshold), feature='dist')
+
         # PolytomySolver v1.2.4
         # PolytomySolver(string speciesTreeString, string geneTreeString, string strDistances, string _rerootMode, bool _testEdgeRoots, bool _hasNonnegativeDistanceFlag, bool _useCache)
         if gn_reroot_mode in ["none","findbestroot","outputallroots"]:
-            polytomysolver_out = PolytomySolver(str(speciesTree), geneTree, distances, gn_reroot_mode, False, False, True)
+            polytomysolver_out = PolytomySolver(str(speciesTree), gn_tree_obj.write(format=6).replace("%%",";;"), distances, gn_reroot_mode, False, False, True)
         else:
             return '<b style="color:red;"> PolytomySolver reroot mode error. </b>'
 

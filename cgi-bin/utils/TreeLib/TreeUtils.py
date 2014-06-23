@@ -4,11 +4,13 @@ Date: 02/2014
 TreeUtils is a python class that offer function related to phylogeny tree, using TreeClass
 """
 from TreeClass import TreeClass
-from ClusteringUtils import makeFakeDstMatrice, distMatProcessor
+import ClusterUtils as clu
 from ete2 import Phyloxml
+from ete2.parser.newick import NewickError
 import httplib2
+import hashlib, re
 import os
-import collections
+import collections, string
 
 
 #TreeUtils:
@@ -36,7 +38,7 @@ def fetch_ensembl_genetree_by_id(treeID=None,aligned=0, sequence="none", output=
 		if not resp.status == 200:
 			print "Invalid response: ", resp.status
 			raise ValueError('Failled to process request!')
-		
+
 		if(output.lower()!="text/x-phyloxml"):
 			return TreeClass(content)
 		else:
@@ -46,7 +48,7 @@ def fetch_ensembl_genetree_by_id(treeID=None,aligned=0, sequence="none", output=
 
 
 def fetch_ensembl_genetree_by_member(memberID=None, species=None, id_type=None, output="nh", nh_format="full"):
-	
+
 	"""Fetch genetree from a member ID
 
 	:argument memberID: the ensembl gene ID member of the tree to fetch, this is mandatory! EX: ENSG00000157764
@@ -123,7 +125,7 @@ def reconcile(geneTree=None, lcaMap=None, lost="no"):
 				children_list=node.get_children()
 				for child_c in children_list:
 					if((lcaMap[child_c].up != lcaMap[node] and lcaMap[child_c] != lcaMap[node]) or (node.type==TreeClass.AD and lcaMap[node]!=lcaMap[child_c])):
-	
+
 						while((lcaMap[child_c].up!=lcaMap[node] and node.type==TreeClass.SPEC) or (lcaMap[child_c]!=lcaMap[node] and node.type!=TreeClass.SPEC)):
 							lostnode=TreeClass()
 							intern_lost=TreeClass()
@@ -190,7 +192,7 @@ def CleanFeatures(tree=None, features=[]):
 
 def getTreeFromPhyloxml(xml, saveToFile="default.xml", delFile=True):
 	"""
-	Read a phylogeny tree from a phyloxml string and return a TreeClass object 
+	Read a phylogeny tree from a phyloxml string and return a TreeClass object
 	or a list of TreeClass object
 	"""
 	project = Phyloxml()
@@ -215,17 +217,7 @@ def reset_node_name(tree,sep):
 	return tree
 
 
-def label_internal_node(tree):
-	"""Label the internal node of a specietree for the polysolver algorithm"""
-	i=1
-	for x in tree.traverse(strategy='levelorder'):
-		if not x.is_leaf():
-			x.name="%i"%(i)
-			i+=1
-	return tree
-
-
-def make_random_tree(names, contract_seuil=0, feature_to_contract='support'):
+def make_random_tree(names=list(string.lowercase), contract_seuil=0, feature_to_contract='support'):
 	"""Make a random Gene Tree"""
 	tree= TreeClass()
 	tree.populate(len(names), names_library=names, random_branches=True)
@@ -250,6 +242,13 @@ def getSpecieGeneMap(genetree, specietree):
 	return mapGene
 
 
+def treeHash(tree):
+	"""Hashing the tree based on the sorted node name"""
+	newick_str= re.sub("(?<=\()([^()]+?)(?=\))",lambda m: ",".join(sorted(m.group(1).split(","))), tree.write(format=9))
+	#print "newick: ", tree.write(format=9), "parsing: ", newick_str
+	return hashlib.sha384(newick_str).hexdigest()
+
+
 def newick_preprocessing(newick, gene_sep=None):
 	"""Newick format pre-processing in order to assure its correctness"""
 	DEF_SEP_LIST= [';;', ';', '-', '|', '%', '+','/']
@@ -262,7 +261,7 @@ def newick_preprocessing(newick, gene_sep=None):
 		nw = nw.strip()
 		if nw.endswith(';'):
 			nw = nw[:-1]
-		
+
 		if gene_sep is None:
 			i=0
 			while i< len(DEF_SEP_LIST) and DEF_SEP_LIST[i] not in nw:
@@ -283,13 +282,13 @@ def newick_preprocessing(newick, gene_sep=None):
 
 def polySolverPreprocessing(genetree, specietree, distance_file, capitalize=False, gene_sep = None, specie_pos="postfix", dist_diagonal=1e305):
 	#################################################################
-	#TODO : 
+	#TODO :
 	#	1) Correct newick
 	#	2) Sequence retrieve
 	#	3) PhyML to align sequence and make a distance matrice
 	#
 	#################################################################
-	
+
 	#genetree input
 	if isinstance(genetree, basestring):
 		genetree, gene_sep=newick_preprocessing(genetree, gene_sep)
@@ -300,17 +299,17 @@ def polySolverPreprocessing(genetree, specietree, distance_file, capitalize=Fals
 	if isinstance(specietree, basestring):
 		specietree, sep=newick_preprocessing(specietree, '')
 		specietree= TreeClass(specietree)
-		label_internal_node(specietree)
+		specietree.label_internal_node()
 
 	#distance matrice input
 	if(distance_file):
-		gene_matrix, node_order= distMatProcessor(distance_file, dist_diagonal)
+		gene_matrix, node_order= clu.distMatProcessor(distance_file, dist_diagonal)
 		#Difference check 1
 		if set(node_order).difference(set(genetree.get_leaf_names())):
 			reset_node_name(genetree, gene_sep)
 	else:
 		node_order= genetree.get_leaf_names()
-		gene_matrix= makeFakeDstMatrice(len(node_order), 0, 1, dist_diagonal) #Alternative, retrieve aligned sequence and run phyML
+		gene_matrix= clu.makeFakeDstMatrice(len(node_order), 0, 1, dist_diagonal) #Alternative, retrieve aligned sequence and run phyML
 
 	#Find list of species not in genetree
 	specieGeneList= set(genetree.get_leaf_species())
