@@ -155,3 +155,9 @@ border: 1px dotted #555;
 text-align:center;
 background-color: #fff;
 }
+
+.disabled {
+    color: #999999;
+    text-shadow: 1px 1px #ffffff;
+    cursor: default;
+}
