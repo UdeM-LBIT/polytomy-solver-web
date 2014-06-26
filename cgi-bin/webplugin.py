@@ -18,6 +18,7 @@ import json
 # toolkits
 from ete2 import WebTreeApplication, PhyloTree, faces, Tree, TreeStyle
 from Bio.Phylo.Applications import _Phyml
+from Bio.Phylo.TreeConstruction import _DistanceMatrix
 
 # project
 from algorithms.libpolytomysolver import PolytomySolver
@@ -26,8 +27,7 @@ from utils.TreeLib import TreeUtils, TreeClass
 # start virtual display
 xvfb=Display(visible=0, size=(1024, 768)).start()
 
-# In order to extend the default WebTreeApplication, we define our own
-# WSGI function that handles URL queries
+# In order to extend the default WebTreeApplication, we define our own WSGI function that handles URL queries
 def webplugin_app(environ, start_response, queries):
     asked_method = environ['PATH_INFO'].split("/")
     URL = environ['REQUEST_URI']
@@ -37,9 +37,6 @@ def webplugin_app(environ, start_response, queries):
 
     if not treeid:
         treeid = md5(str(time.time())).hexdigest()
-
-    #(WSGI needs this)
-    #start_response('202 OK', [('content-type', 'text/plain')])
 
     # NOTE : asked_methods are overriden by the base functions found in WebTreeApplication
     # (ex : catching "draw" here will not be executed)
@@ -51,7 +48,7 @@ def webplugin_app(environ, start_response, queries):
         speciesTree = queries.get("speciesTree", [None])[0]
         geneTree = queries.get("geneTree", [None])[0]
         geneSeq = queries.get("geneSeq", [None])[0]
-        distances = queries.get("distances", [None])[0]
+        geneDistances = queries.get("geneDistances", [None])[0]
         sp_tol = queries.get("sp_tol", [None])[0]
         gn_ensembl_tree = queries.get("gn_ensembl", [None])[0]
         gn_reroot_mode = queries.get("gn_reroot_mode", [None])[0]
@@ -70,10 +67,25 @@ def webplugin_app(environ, start_response, queries):
         gn_tree_obj = TreeClass(TreeUtils.newick_preprocessing(geneTree)[0])
         gn_tree_obj.contract_tree(seuil=float(gn_support_threshold), feature='dist')
 
+        # Turn the geneDistances distance matrix into an object for easier manipulation
+        geneDistances_parsed = []
+        geneDistances_lines = geneDistances.split('\n')[1:]
+        line_no = 1
+        for line in geneDistances_lines:
+            line_lst = line.strip().split()
+            geneDistances_parsed.append([line_lst[0], [float(i) for i in line_lst[1:line_no+1]]])
+            line_no+=1
+
+        dm = _DistanceMatrix([elem[0] for elem in geneDistances_parsed], [elem[1] for elem in geneDistances_parsed])
+
+
+        print >> sys.stderr, dm
+
+
         # PolytomySolver v1.2.4
         # PolytomySolver(string speciesTreeString, string geneTreeString, string strDistances, string _rerootMode, bool _testEdgeRoots, bool _hasNonnegativeDistanceFlag, bool _useCache)
         if gn_reroot_mode in ["none","findbestroot","outputallroots"]:
-            polytomysolver_out = PolytomySolver(str(speciesTree), gn_tree_obj.write(format=6).replace("%%",";;"), distances, gn_reroot_mode, False, False, True)
+            polytomysolver_out = PolytomySolver(str(speciesTree), gn_tree_obj.write(format=6).replace("%%",";;"), geneDistances, gn_reroot_mode, False, False, True)
         else:
             return '<b style="color:red;"> PolytomySolver reroot mode error. </b>'
 
@@ -132,9 +144,8 @@ def webplugin_app(environ, start_response, queries):
 
             # NOTE : wrapper (for reasons unknown) adds the '=' character with the optimize params ('-o=none' and not '-o none')
             # which does not play nice with the newer phyml release
-	    #phyml.set_parameter("-o","none")
-            #phyml.program_name = 'utils/phyml'
-            phyml.program_name = './"utils/phyml" -o none'
+	    phyml.set_parameter("-o","none")
+            phyml.program_name = 'utils/phyml'
 
             # Run phyml
             #NOTE : Try/Catch block?
@@ -195,10 +206,6 @@ def webplugin_app(environ, start_response, queries):
 # use this method to load the trees
 # ==============================================================================
 
-# Custom Tree loader
-#def extract_species_code(name):
-    #return str(name).split("_")[-1].strip()
-
 # NOTE : Special consideration for current sample set... may not all be of this format!
 def extract_species_code(name):
     name_lst = str(name).split("_")
@@ -209,8 +216,7 @@ def extract_species_code(name):
         return ' '.join(name_lst).strip()
 
 def my_tree_loader(tree):
-    """ This is function is used to load trees within the
-    WebTreeApplication object. """
+    """ This function is used to load trees within the WebTreeApplication object. """
 
     t = PhyloTree(tree, sp_naming_function=None)
 
@@ -230,7 +236,7 @@ def my_tree_loader(tree):
 LEAVE_FACES = [] # Global var that stores the faces that are rendered
                  # by the layout function
 def main_layout(node):
-    ''' Main layout function. It controls what is shown in tree images. '''
+    """ Main layout function. It controls what is shown in tree images. """
 
     # Add faces to leaf nodes. This allows me to add the faces from
     # the global variable LEAVE_FACES, which is set by the application
@@ -261,7 +267,8 @@ def main_layout(node):
     # Evoltype: [1] Duplication A, [0] Speciation, [2] NAD or [-1] Losses.
     if hasattr(node,"type"):
         if str(node.type) == "2":
-            node.img_style["fgcolor"] = "#1A1A1A"
+            node.img_style["fgcolor"] = "#FF8000"
+            node.img_style["size"] = 12
         elif str(node.type) == "1":
             node.img_style["fgcolor"] = "#3F9933"
             node.img_style["size"] = 12
@@ -273,6 +280,7 @@ def main_layout(node):
             node.img_style["hz_line_color"] = "#000000"
         elif str(node.type) == "-1":
             node.img_style["fgcolor"] = "#FF0000"
+            node.img_style["size"] = 12
             node.img_style["vt_line_color"] = "#FF0000"
             node.img_style["hz_line_color"] = "#FF0000"
             node.img_style["hz_line_type"] = 1
@@ -488,7 +496,6 @@ def tree_renderer(tree, treeid, application):
     tree.dist = 0
 
 
-
     # This are the features that I wanto to convert into image
     # faces. I use an automatic function to do this. Each element in
     # the dictionary is a list that contains the information about how
@@ -645,6 +652,15 @@ def tree_renderer(tree, treeid, application):
             tree.write(features=[]) +\
             "</textarea>"
 
+    legend = '''<br>
+    <ul>
+    <il><img src="webplugin/legend/spec.png"/>Speciation</li>
+    <il><img src="webplugin/legend/dup.png"/>Duplication</li>
+    <il><img src="webplugin/legend/loss.png"/>Loss</li>
+    <il><img src="webplugin/legend/nad.png"/>Non Apparent Duplication</li>
+    </ul>
+    '''
+
     try:
         tree_ll = '''<br> Log-likelihood : '''+ tree.log_likelihood
     except Exception as e:
@@ -654,7 +670,7 @@ def tree_renderer(tree, treeid, application):
     xvfb.stop()
 
     # Let's return enriched HTML
-    return tree_panel_html + tree_html + newick + tree_ll
+    return tree_panel_html + tree_html + legend + newick + tree_ll
 
 # ==============================================================================
 #
@@ -750,11 +766,11 @@ if __name__ == '__main__':
 
 	# Node manipulation options (bound to node items and all their faces)
 	application.register_action("branch_info", "node", None, None, branch_info)
+	application.register_action("Highlight background", "node", set_bg, None, None)
+	application.register_action("Swap children", "node", swap_branches, is_not_leaf, None)
+	#application.register_action("Set as root", "node", set_as_root, None, None)
 	#application.register_action("<b>Collapse</b>", "node", collapse, can_collapse, None)
 	#application.register_action("Expand", "node", expand, can_expand, None)
-	application.register_action("Highlight background", "node", set_bg, None, None)
-	#application.register_action("Set as root", "node", set_as_root, None, None)
-	application.register_action("Swap children", "node", swap_branches, is_not_leaf, None)
 
 	# Actions attached to node's content (shown as text faces)
 	#application.register_action("divider", "face", None, None, external_links_divider)
