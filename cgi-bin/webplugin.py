@@ -141,14 +141,8 @@ def webplugin_app(environ, start_response, queries):
             input_trees = "%s/utils/phyml_tmp/%s.newick" %(WEB_APP_FOLDER_PATH, treeid)
 
             phyml = _Phyml.PhymlCommandline(input=input_seqs, input_tree=input_trees, bootstrap=0)
-
-            # NOTE : wrapper (for reasons unknown) adds the '=' character with the optimize params ('-o=none' and not '-o none')
-            # which does not play nice with the newer phyml release
 	    phyml.set_parameter("-o","none")
             phyml.program_name = 'utils/phyml'
-
-            # Run phyml
-            #NOTE : Try/Catch block?
             phyml()
 
             # Fetch phyml output
@@ -196,7 +190,6 @@ def webplugin_app(environ, start_response, queries):
             trees_dropdown += '</select>'
 
         return trees_dropdown
-
 
 
 # ==============================================================================
@@ -472,9 +465,9 @@ def topology_action_divider(aindex, nodeid, treeid, text, node):
 #
 # ==============================================================================
 def tree_renderer(tree, treeid, application):
-    # The following part controls the features that are attched to
+    # The following part controls the features that are attached to
     # leaf nodes and that will be shown in the tree image. Node styles
-    # are set it here, and faces are also created. The idea is the
+    # are set here, and faces are also created. The idea is the
     # following: user can pass feature names using the URL argument
     # "tree_features". If the feature is handled by our function and
     # it is available in nodes, a face will be created and added to
@@ -494,7 +487,6 @@ def tree_renderer(tree, treeid, application):
     tree.add_feature("shape", "sphere")
     tree.add_feature("bsize", "8")
     tree.dist = 0
-
 
     # This are the features that I wanto to convert into image
     # faces. I use an automatic function to do this. Each element in
@@ -630,25 +622,21 @@ def tree_renderer(tree, treeid, application):
      <i> (Press ENTER to initiate the search)</i>
      </div>
      ''' %\
-             (treeid, 0, search_select) # 0 is the action index associated'
-                                   # to the search functionality. This
-                                   # means that this action is the
-                                   # first to be registered in WebApplication.
+             (treeid, 0, search_select) # 0 is the action index associated to the
+                                        # search functionality. This means that this action is the
+                                        # first to be registered in WebApplication.
 
 
     buttons = '<div id="ete_tree_buttons">' +\
             main_search + features_button + clean_search_button + download_button +\
             '</div>'
 
-
-
-
     tree_panel_html = '<div id="tree_panel">' + search_form + html_features + buttons + '</div>'
 
     # Now we render the tree into image and get the HTML that handles it
     tree_html = application._get_tree_img(treeid = treeid)
 
-    newick = '''<br><textarea  id="newick_out" style="width: 500px; height: 80px; border:dashed 1px;">''' + \
+    newick = '''<br><textarea  id="newick_out" title="Newick" style="width: 500px; height: 80px; border:dashed 1px;">''' + \
             tree.write(features=[]) +\
             "</textarea>"
 
@@ -657,7 +645,7 @@ def tree_renderer(tree, treeid, application):
     <il><img src="webplugin/legend/spec.png"/>Speciation</li>
     <il><img src="webplugin/legend/dup.png"/>Duplication</li>
     <il><img src="webplugin/legend/loss.png"/>Loss</li>
-    <il><img src="webplugin/legend/nad.png"/>Non Apparent Duplication</li>
+    <il><img src="webplugin/legend/nad.png"/>Non-Apparent Duplication</li>
     </ul>
     '''
 
@@ -689,7 +677,6 @@ if __name__ == '__main__':
 	# webserver.
 	application.CONFIG["temp_dir"] = TMP_DIR_PATH
 	application.CONFIG["temp_url"] = TMP_WEB_RELATIVE_PATH # Relative to web site Document Root
-
 
 	# Set the DISPLAY port that ETE should use to draw pictures. You will
 	# need a X server installed in your server and allow webserver user to
@@ -728,7 +715,7 @@ if __name__ == '__main__':
 	#
 	#
 	# register_action(action_name, target_type=["node"|"face"|"layout"|"search"], \
-		#                 action_handler, action_checker, html_generator_handler)
+	#                 action_handler, action_checker, html_generator_handler)
 	#
 	# When the Application is executed it will read your registered
 	# acctions and will do the following:
