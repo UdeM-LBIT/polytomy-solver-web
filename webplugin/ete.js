@@ -148,5 +148,54 @@ function show_box(e, box) {
 }
 
 $(document).ready(function(){
-		hide_popup();
-		});
+
+    //Fill speciesTree
+    $.ajax({
+        url : "webplugin/example/speciesTree.newick",
+        dataType: "text",
+        success : function (data) {
+            $("#speciesTree").text(data);
+        }
+    });
+
+    //Fill geneTree
+    $.ajax({
+        url : "webplugin/example/geneTree.newick",
+        dataType: "text",
+        success : function (data) {
+            $("#geneTree").text(data);
+        }
+    });
+
+    //Fill distances
+    $.ajax({
+        url : "webplugin/example/geneDistances.dm",
+        dataType: "text",
+        success : function (data) {
+            $("#geneDistances").text(data);
+        }
+    });
+
+    //Fill sequences
+    $.ajax({
+        url : "webplugin/example/geneSeq.nexus",
+        dataType: "text",
+        success : function (data) {
+            $("#geneSeq").text(data);
+        }
+    });
+
+    //Popup
+    hide_popup();
+
+    //Qtip
+    $('[title!=""]').qtip({
+        position: {
+            my: 'left center',
+            at: 'right center'
+        },
+        style:{
+            classes:'qtip-dark'
+        }
+    });
+});
