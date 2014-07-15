@@ -7,14 +7,16 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.10.4/jquery-ui.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qtip2/2.2.0/jquery.qtip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/2.0.2/js/toastr.js"></script>
 <script src="webplugin/ete.js"></script>
 <script>
 /* YOU MUST SET THIS VARIABLE */
 var ete_webplugin_URL = "cgi-bin/webplugin.py"
 
 </script>
-<link rel="stylesheet" type="text/css" href="webplugin/ete.css" >
-<link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/qtip2/2.2.0/jquery.qtip.min.css" >
+<link rel="stylesheet" type="text/css" href="webplugin/ete.css">
+<link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/qtip2/2.2.0/jquery.qtip.min.css">
+<link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/2.0.2/css/toastr.min.css">
 </head>
 
 <body>
@@ -30,7 +32,8 @@ var ete_webplugin_URL = "cgi-bin/webplugin.py"
         <textarea
             title='• You can paste trees in newick (NH) and extended newick (NHX) formats. <br><br>
                    • Features in NHX format will be parsed as tree features so you can add them as node faces to the tree image.<br><br>
-                   • Features whose names starts by "_" will be ignored.'
+                   • Features whose names starts by "_" will be ignored. <br><br>
+                   • Case sensitive.'
             id="speciesTree" onClick="$(this).removeClass('disabled');$('#sp_tol_form').addClass('disabled');$('#sp_tol_form').find('#sp_tol').prop('checked', false);"></textarea>
 
         <br><i> - OR - </i><br>
@@ -46,7 +49,7 @@ var ete_webplugin_URL = "cgi-bin/webplugin.py"
         <li>
         <textarea
             title='• Labels should follow the format "GENE;;SPECIE". <br><br>
-                   • Species are case insensitive.'
+                   • Case sensitive.'
             id="geneTree" onClick="$(this).removeClass('disabled');$('#gn_ensembl_form').addClass('disabled');"></textarea>
         <br><i> - OR - </i><br>
         <form id="gn_ensembl_form" class="disabled" onClick="$(this).removeClass('disabled');$(this).find('#gn_ensembl').focus();$('#geneTree').addClass('disabled');">

@@ -67,55 +67,31 @@ def webplugin_app(environ, start_response, queries):
         gn_tree_obj = TreeClass(TreeUtils.newick_preprocessing(geneTree)[0])
         gn_tree_obj.contract_tree(seuil=float(gn_support_threshold), feature='dist')
 
-        # Turn the geneDistances distance matrix into an object for easier manipulation
-        geneDistances_parsed = []
-        geneDistances_lines = geneDistances.split('\n')[1:]
-        line_no = 1
-        for line in geneDistances_lines:
-            line_lst = line.strip().split()
-            geneDistances_parsed.append([line_lst[0], [float(i) for i in line_lst[1:line_no+1]]])
-            line_no+=1
-
-        dm = _DistanceMatrix([elem[0] for elem in geneDistances_parsed], [elem[1] for elem in geneDistances_parsed])
-
-
-        print >> sys.stderr, dm
-
-
-        # PolytomySolver v1.2.4
+        # PolytomySolver v1.2.5
         # PolytomySolver(string speciesTreeString, string geneTreeString, string strDistances, string _rerootMode, bool _testEdgeRoots, bool _hasNonnegativeDistanceFlag, bool _useCache)
         if gn_reroot_mode in ["none","findbestroot","outputallroots"]:
             polytomysolver_out = PolytomySolver(str(speciesTree), gn_tree_obj.write(format=6).replace("%%",";;"), geneDistances, gn_reroot_mode, False, False, True)
         else:
             return '<b style="color:red;"> PolytomySolver reroot mode error. </b>'
 
-        trees_out = []
         trees_processed = []
 
         # Get list of trees
         for line in polytomysolver_out.splitlines():
             if line[0] != "#":
-               trees_out.append(line)
+                tree = TreeClass(line)
+                speciesTree_obj = TreeClass(speciesTree)
 
-        for tree in trees_out:
-            tree_obj = TreeClass(tree)
-            speciesTree_obj = TreeClass(speciesTree)
+                tree.set_species(sep="__",pos="postfix")
+                tree.set_genes(sep="__",pos="prefix")
 
-            tree_obj.set_species(sep="__",pos="postfix")
-            tree_obj.set_genes(sep="__",pos="prefix")
+                lcamap = TreeUtils.lcaMapping(tree, speciesTree_obj)
 
-            # Note : lcamapping checks if tree_obj.specie == speciesTree_obj.name
-            # (might want to do the case sanitization in ete.js)
-            for node in speciesTree_obj:
-                node.name = node.name.lower()
-
-            lcamap = TreeUtils.lcaMapping(tree_obj, speciesTree_obj)
-
-            # Reconcile gene and species tree
-            TreeUtils.reconcile(tree_obj, lcamap)
-            trees_processed.append(tree_obj)
-            if not application._load_tree(treeid, tree_obj):
-                return '<b style="color:red;"> Cannot load the tree: %s' %treeid
+                # Reconcile gene and species tree
+                TreeUtils.reconcile(tree, lcamap)
+                trees_processed.append(tree)
+                if not application._load_tree(treeid, tree):
+                    return '<b style="color:red;"> Cannot load the tree: %s' %treeid
 
 
         # Phyml - v20140520

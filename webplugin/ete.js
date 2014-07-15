@@ -24,12 +24,13 @@ function draw_tree(treeid, newick, recipient, show_features, extra_params){
 			function( response, status, xhr ) {
 
 			if ( status == "error" ) {
-			$( recipient ).html( '<b style="color:red;"> Oops! Something went wrong.</b>' );
+                toastr.error("Oops! Something went wrong.");
+			    $( recipient ).html( '' );
 			}else{
-			$(recipient).css("display","none");
-			$(recipient).find("img.ete_tree_img").fadeIn().load(function(){
-				$(recipient).css({"display":"inline-block" ,"min-height":$(recipient).height()});
-				$("#img0").css({"display":"inline-block" ,"min-height":$(recipient).height()});
+			    $(recipient).css("display","none");
+			    $(recipient).find("img.ete_tree_img").fadeIn().load(function(){
+				    $(recipient).css({"display":"inline-block" ,"min-height":$(recipient).height()});
+				    $("#img0").css({"display":"inline-block" ,"min-height":$(recipient).height()});
 				})
 			}});
 }
@@ -58,7 +59,8 @@ function polytomysolver(treeid, speciesTree, geneTree, geneDistances, geneSeq, s
 			function( response, status, xhr ) {
 
 			if ( status == "error" ) {
-			$( recipient ).html( '<b style="color:red;"> Oops! Something went wrong.</b>' );
+                toastr.error("Oops! Something went wrong.");
+			    $( recipient ).html( '' );
 			}else{
 
 			//$(recipient).css("display","none");
@@ -107,9 +109,10 @@ function run_action(treeid, nodeid, aindex, search_term){
 	//(simply putting show_features in params does not work)
 	$.post(ete_webplugin_URL+'/action', params, function(data, textStatus, jqXHR){
 			if ( status == "error" ) {
-			$( recipient ).html( '<b style="color:red;"> Oops! Something went wrong.</b>' );
+                toastr.error("Oops! Something went wrong.");
+                $( recipient ).html( '' );
 			} else {
-			draw_tree(treeid, "", recipient, selected_features.join(",") );
+                draw_tree(treeid, "", recipient, selected_features.join(",") );
 			}
 			});
 
@@ -148,6 +151,8 @@ function show_box(e, box) {
 }
 
 $(document).ready(function(){
+    //Toastr
+    toastr.options.positionClass = "toast-top-full-width";
 
     //Fill speciesTree
     $.ajax({
