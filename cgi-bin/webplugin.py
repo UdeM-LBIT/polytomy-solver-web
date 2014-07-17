@@ -18,7 +18,6 @@ import json
 # toolkits
 from ete2 import WebTreeApplication, PhyloTree, faces, Tree, TreeStyle
 from Bio.Phylo.Applications import _Phyml
-from Bio.Phylo.TreeConstruction import _DistanceMatrix
 
 # project
 from algorithms.libpolytomysolver import PolytomySolver
@@ -74,11 +73,12 @@ def webplugin_app(environ, start_response, queries):
         else:
             return '<b style="color:red;"> PolytomySolver reroot mode error. </b>'
 
-        trees_processed = []
+        trees_mapped_reconciled = []
 
         # Get list of trees
         for line in polytomysolver_out.splitlines():
             if line[0] != "#":
+                print >> sys.stderr, "not"
                 tree = TreeClass(line)
                 speciesTree_obj = TreeClass(speciesTree)
 
@@ -89,83 +89,98 @@ def webplugin_app(environ, start_response, queries):
 
                 # Reconcile gene and species tree
                 TreeUtils.reconcile(tree, lcamap)
-                trees_processed.append(tree)
+                trees_mapped_reconciled.append(tree)
+
                 if not application._load_tree(treeid, tree):
                     return '<b style="color:red;"> Cannot load the tree: %s' %treeid
 
+        # Dropdown for all trees
+        trees_dropdown ="""<script>
+                        $("#select_trees_dropdown").on("change", function(){
+                            var sel = document.getElementById("select_trees_dropdown");
+                            var selected_value = sel.options[sel.selectedIndex].value;
+                            var selected_value_json = JSON.parse(selected_value);
+                            draw_tree(%s, selected_value_json.newick, "#img1", "name");
+                            });
 
-        # Phyml - v20140520
-        # Calculate the log likelihood of the output tree and the given gene sequence data
-        # TODO : Wrap this into a separate function that will give log likelihood for a given tree and set of sequences
-        if (geneSeq != None):
-            # Write sequences to file
-            with open("utils/phyml_tmp/%s.nex"%treeid, "w") as seqs_file:
-                seqs_file.write(geneSeq)
+                            $(document).ready(function() {
+                            $('#select_trees_dropdown').trigger("change");
+                            });
 
-            with open("utils/phyml_tmp/%s.newick"%treeid, "w") as newick_file:
-                for tree in trees_processed:
-                    # Write newick for trees in a .newick file named after the treeid of the first tree
-                    # Convert all tree labels to gene names only
-                    t_tmp = tree.copy()
-                    leaves = t_tmp.get_leaves()
-                    for leaf in leaves:
-                        leaf.name=leaf.genes
-                    newick_file.write(t_tmp.write(features=[])+"\n")
+                            </script>"""%treeid +\
+                                    """<select id="select_trees_dropdown">"""
 
-            # Set everything up to run phyml on the sequences and get the log likelihood for tree
-            input_seqs = "%s/utils/phyml_tmp/%s.nex" %(WEB_APP_FOLDER_PATH, treeid)
-            input_trees = "%s/utils/phyml_tmp/%s.newick" %(WEB_APP_FOLDER_PATH, treeid)
+        trees_processed = phyml(geneSeq, trees_mapped_reconciled, treeid)
 
-            phyml = _Phyml.PhymlCommandline(input=input_seqs, input_tree=input_trees, bootstrap=0)
-	    phyml.set_parameter("-o","none")
-            phyml.program_name = 'utils/phyml'
-            phyml()
+        trees_processed.sort(key=lambda x: x.log_likelihood)
 
-            # Fetch phyml output
-            output_stats = "%s/utils/phyml_tmp/%s.nex_phyml_stats.txt" %(WEB_APP_FOLDER_PATH, treeid)
-            output_tree = "%s/utils/phyml_tmp/%s.nex_phyml_tree.txt" %(WEB_APP_FOLDER_PATH, treeid)
-
-            ll_keyword = ". Log-likelihood:"
-            log_index = 0
-
-            with open(output_stats) as search:
-                for line in search:
-                    if ". Log-likelihood:" in line:
-                        line = line.replace(ll_keyword, "")
-                        trees_processed[log_index].log_likelihood=line.strip()
-                        trees_processed[log_index].tree_number=log_index+1
-                        log_index += 1
-
-            # Clean up tmp files
-            os.remove(input_seqs)
-            os.remove(input_trees)
-            os.remove(output_stats)
-            os.remove(output_tree)
-
-            # Dropdown for all trees
-            trees_dropdown ="""<script>
-                            $("#select_trees_dropdown").on("change", function(){
-                                var sel = document.getElementById("select_trees_dropdown");
-                                var selected_value = sel.options[sel.selectedIndex].value;
-                                var selected_value_json = JSON.parse(selected_value);
-                                draw_tree(%s, selected_value_json.newick, "#img1", "name");
-                                });
-
-                                $(document).ready(function() {
-                                $('#select_trees_dropdown').trigger("change");
-                                });
-
-                                </script>"""%treeid +\
-                                        """<select id="select_trees_dropdown">"""
-
-            trees_processed.sort(key=lambda x: x.log_likelihood)
-
-            for tree in trees_processed:
-                value = json.dumps({"newick":tree.write(features=[]),"log-likelihood":tree.log_likelihood})
-                trees_dropdown += "<option value='%s'>Tree %d (Log-likelihood : %s)</option>"%(value,tree.tree_number,tree.log_likelihood)
-            trees_dropdown += '</select>'
+        for tree in trees_processed:
+            value = json.dumps({"newick":tree.write(features=[]),"log-likelihood":tree.log_likelihood})
+            trees_dropdown += "<option value='%s'>Tree %d (Log-likelihood : %s)</option>"%(value,tree.tree_number,tree.log_likelihood)
+        trees_dropdown += '</select>'
 
         return trees_dropdown
+
+
+# ==============================================================================
+# Helper Functions
+#
+# ==============================================================================
+
+def phyml(geneSeq, trees_processed, treeid):
+
+
+    # Phyml - v20140520
+    # Calculate the log likelihood of the output tree(s) and the given gene sequence data
+    if (geneSeq != None):
+        # Write sequences to file
+        with open("utils/phyml_tmp/%s.nex"%treeid, "w") as seqs_file:
+            seqs_file.write(geneSeq)
+
+        with open("utils/phyml_tmp/%s.newick"%treeid, "w") as newick_file:
+            for tree in trees_processed:
+
+                print >> sys.stderr, trees_processed
+
+                # Write newick for trees in a .newick file named after the treeid of the first tree
+                # Convert all tree labels to gene names only
+                t_tmp = tree.copy()
+                leaves = t_tmp.get_leaves()
+                for leaf in leaves:
+                    leaf.name=leaf.genes
+                newick_file.write(t_tmp.write(features=[])+"\n")
+
+        # Set everything up to run phyml on the sequences and get the log likelihood for tree
+        input_seqs = "%s/utils/phyml_tmp/%s.nex" %(WEB_APP_FOLDER_PATH, treeid)
+        input_trees = "%s/utils/phyml_tmp/%s.newick" %(WEB_APP_FOLDER_PATH, treeid)
+
+        phyml = _Phyml.PhymlCommandline(input=input_seqs, input_tree=input_trees, bootstrap=0)
+        phyml.set_parameter("-o","none")
+        phyml.program_name = 'utils/phyml'
+        phyml()
+
+        # Fetch phyml output
+        output_stats = "%s/utils/phyml_tmp/%s.nex_phyml_stats.txt" %(WEB_APP_FOLDER_PATH, treeid)
+        output_tree = "%s/utils/phyml_tmp/%s.nex_phyml_tree.txt" %(WEB_APP_FOLDER_PATH, treeid)
+
+        ll_keyword = ". Log-likelihood:"
+        log_index = 0
+
+        with open(output_stats) as search:
+            for line in search:
+                if ". Log-likelihood:" in line:
+                    line = line.replace(ll_keyword, "")
+                    trees_processed[log_index].log_likelihood=line.strip()
+                    trees_processed[log_index].tree_number=log_index+1
+                    log_index += 1
+
+        # Clean up tmp files
+        os.remove(input_seqs)
+        os.remove(input_trees)
+        os.remove(output_stats)
+        os.remove(output_tree)
+
+    return trees_processed
 
 
 # ==============================================================================
