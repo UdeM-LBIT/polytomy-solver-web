@@ -18,6 +18,7 @@ import json
 # toolkits
 from ete2 import WebTreeApplication, PhyloTree, faces, Tree, TreeStyle
 from Bio.Phylo.Applications import _Phyml
+from Bio.Align.Applications import ClustalOmegaCommandline
 
 # project
 from algorithms.libpolytomysolver import PolytomySolver
@@ -52,9 +53,12 @@ def webplugin_app(environ, start_response, queries):
         gn_ensembl_tree = queries.get("gn_ensembl", [None])[0]
         gn_reroot_mode = queries.get("gn_reroot_mode", [None])[0]
         gn_support_threshold = queries.get("gn_support_threshold", [None])[0]
+        gn_contract_branches = queries.get("gn_contract_branches", [None])[0]
+        seq_align = queries.get("seq_align", [None])[0]
+        seq_format = queries.get("seq_format", [None])[0] #TODO: autodetection with Bio.SeqIO if this is "auto"
 
         # Use the ensembl tree of life?
-        if sp_tol != "0":
+        if sp_tol == 1:
             f = open(WEB_APP_FOLDER_PATH+'/ressources/ensembl.nw', 'r')
             speciesTree = f.read()
 
@@ -62,9 +66,12 @@ def webplugin_app(environ, start_response, queries):
         if gn_ensembl_tree:
             geneTree = TreeUtils.fetch_ensembl_genetree_by_id(gn_ensembl_tree)
 
-        # Contract low support branches (might want to add a y/n checkbox instead of running everytime with 0 as default)
+        # Preprocess gene tree
         gn_tree_obj = TreeClass(TreeUtils.newick_preprocessing(geneTree)[0])
-        gn_tree_obj.contract_tree(seuil=float(gn_support_threshold), feature='dist')
+
+        # Contract low support branches (might want to add a y/n checkbox instead of running everytime with 0 as default)
+        if gn_contract_branches == 1:
+            gn_tree_obj.contract_tree(seuil=float(gn_support_threshold), feature='dist')
 
         # PolytomySolver v1.2.5
         # PolytomySolver(string speciesTreeString, string geneTreeString, string strDistances, string _rerootMode, bool _testEdgeRoots, bool _hasNonnegativeDistanceFlag, bool _useCache)
@@ -78,7 +85,6 @@ def webplugin_app(environ, start_response, queries):
         # Get list of trees
         for line in polytomysolver_out.splitlines():
             if line[0] != "#":
-                print >> sys.stderr, "not"
                 tree = TreeClass(line)
                 speciesTree_obj = TreeClass(speciesTree)
 
@@ -109,6 +115,8 @@ def webplugin_app(environ, start_response, queries):
 
                             </script>"""%treeid +\
                                     """<select id="select_trees_dropdown">"""
+        if seq_align == 1:
+            geneSeq = clustalo(geneSeq, treeid)
 
         trees_processed = phyml(geneSeq, trees_mapped_reconciled, treeid)
 
@@ -127,8 +135,24 @@ def webplugin_app(environ, start_response, queries):
 #
 # ==============================================================================
 
-def phyml(geneSeq, trees_processed, treeid):
 
+def clustalo(geneSeq, treeid):
+
+    #TODO : Both clustalo and phyml write geneSeq to file...
+    if (geneSeq != None):
+        input_seqs = "%s/utils/clustalo_tmp/%s.nex" %(WEB_APP_FOLDER_PATH, treeid)
+        # Write sequences to file
+        with open(input_seqs, "w") as seqs_file:
+            seqs_file.write(geneSeq)
+
+    alignment_file = "%s/utils/clustalo_tmp/ALIGNED_%s.nex" %(WEB_APP_FOLDER_PATH, treeid)
+    clustalo = ClustalOmegaCommandline(cmd="utils/clustalo-1.2.0", infile=input_seqs, outfile=alignment_file, verbose=False, auto=True, outfmt="phy")
+    clustalo()
+
+    with open (alignment_file, "r") as alignment:
+        return alignment.read()
+
+def phyml(geneSeq, trees_processed, treeid):
 
     # Phyml - v20140520
     # Calculate the log likelihood of the output tree(s) and the given gene sequence data
@@ -139,8 +163,6 @@ def phyml(geneSeq, trees_processed, treeid):
 
         with open("utils/phyml_tmp/%s.newick"%treeid, "w") as newick_file:
             for tree in trees_processed:
-
-                print >> sys.stderr, trees_processed
 
                 # Write newick for trees in a .newick file named after the treeid of the first tree
                 # Convert all tree labels to gene names only

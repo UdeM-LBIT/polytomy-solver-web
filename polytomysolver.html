@@ -27,7 +27,7 @@ var ete_webplugin_URL = "cgi-bin/webplugin.py"
 
 <div id="content" style='text-align: left;'>
     <ul>
-        <h2>Species Tree</h3>
+        <h2>Species Tree</h2>
         <li>
         <textarea
             title='• You can paste trees in newick (NH) and extended newick (NHX) formats. <br><br>
@@ -40,12 +40,12 @@ var ete_webplugin_URL = "cgi-bin/webplugin.py"
         <form id="sp_tol_form" class="disabled">
             <label for="sp_tol" style="display:inline-block" >
                 Ensembl Species Tree
-                <input id="sp_tol" type="checkbox" name="sp_tol" onClick="$('#sp_tol_form').toggleClass('disabled');$('#speciesTree').toggleClass('disabled');" value="yes"/>
+                <input id="sp_tol" type="checkbox" name="sp_tol" onClick="$('#sp_tol_form').toggleClass('disabled');$('#speciesTree').toggleClass('disabled');" />
             </label>
         </form>
         </li>
 
-        <h2>Gene Tree</h3>
+        <h2>Gene Tree</h2>
         <li>
         <textarea
             title='• Labels should follow the format "GENE;;SPECIE". <br><br>
@@ -57,13 +57,26 @@ var ete_webplugin_URL = "cgi-bin/webplugin.py"
         </form>
         </li>
 
-        <h2>Gene Distances</h3>
+        <h2>Gene Distances</h2>
         <li><textarea title="Distance matrix (full or lower triangular)" id="geneDistances"></textarea></li>
 
-        <h2>Gene Sequences</h3>
-        <li><textarea title="NEXUS or PHYLIP format" id="geneSeq"></textarea></li>
+        <h2>Gene Sequences</h2>
+        <li><textarea title="NEXUS or PHYLIP format" id="geneSeq"></textarea><br>
+          Format :
+          <select id="seq_format">
+              <option value="auto">Detect</option>
+              <option value="fasta">Fasta</option>
+              <option value="nexus">Nexus</option>
+              <option value="phylip">Phylip</option>
+          </select><br>
+            <label for="seq_align" style="display:inline-block" >
+                Align
+                <input id="seq_align" type="checkbox" name="seq_align" />
+            </label>
 
-        <h2>Parameters</h3>
+        </li>
+
+        <h2>Parameters</h2>
         <li>
           Mode :
           <select id="gn_reroot_mode">
@@ -72,13 +85,17 @@ var ete_webplugin_URL = "cgi-bin/webplugin.py"
               <option value="findbestroot">Reroot and return best solution (findbestroot)</option>
           </select>
           <br>
-          Contract gene tree branches with support lower than : <input id="gn_support_threshold" type="textbox" value="0.0" name="gn_support_threshold">
+            <label for="gn_contract_branches" style="display:inline-block">
+            <input id="gn_contract_branches" type="checkbox" name="seq_align" />
+            Contract gene tree branches with support lower than : <input id="gn_support_threshold" type="textbox" value="0.0" name="gn_support_threshold">
+            </label>
         </li>
     </ul>
 </div>
 
 <div style="clear:both;" >
-    <input type='submit'  value='Draw tree'  onClick='polytomysolver(random_tid(), $("#speciesTree").val(),$("#geneTree").val() ,$("#geneDistances").val(), $("#geneSeq").val(),"name", $("#sp_tol:checked").length,$("#gn_ensembl").val(),$("#gn_reroot_mode option:selected").val(),$("#gn_support_threshold").val(),"#polytomysolver_dropdown");'>
+    <input type='submit'  value='Draw tree'  onClick='polytomysolver(random_tid(), $("#speciesTree").val(),$("#geneTree").val() ,$("#geneDistances").val(), $("#geneSeq").val(),"name", $("#sp_tol:checked").length,$("#gn_ensembl").val(),$("#gn_reroot_mode option:selected").val(),$("#gn_support_threshold").val(),$("gn_contract_branches:checked").length,$("#seq_format option:selected").val(),$("#seq_align:checked").length,"#polytomysolver_dropdown");'>
+
 
     <input type='button' value='Clear' onClick='$(".ete_image").html("");'>
 </div>

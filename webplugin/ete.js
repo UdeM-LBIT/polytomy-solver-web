@@ -35,7 +35,7 @@ function draw_tree(treeid, newick, recipient, show_features, extra_params){
 			}});
 }
 
-function polytomysolver(treeid, speciesTree, geneTree, geneDistances, geneSeq, show_features, sp_tol, gn_ensembl, gn_reroot_mode, gn_support_threshold,recipient, extra_params){
+function polytomysolver(treeid, speciesTree, geneTree, geneDistances, geneSeq, show_features, sp_tol, gn_ensembl, gn_reroot_mode, gn_support_threshold, gn_contract_branches, seq_format, seq_align, recipient, extra_params){
 	var params = {
         "speciesTree": speciesTree,
 		"geneTree": geneTree,
@@ -46,7 +46,10 @@ function polytomysolver(treeid, speciesTree, geneTree, geneDistances, geneSeq, s
 		"sp_tol": sp_tol,
 		"gn_ensembl": gn_ensembl,
         "gn_reroot_mode": gn_reroot_mode,
-		"gn_support_threshold": gn_support_threshold};
+		"gn_support_threshold": gn_support_threshold,
+		"gn_contract_branches": gn_contract_branches,
+        "seq_format" : seq_format,
+        "seq_align" : seq_align};
 
 	if ( extra_params != undefined ){
 		var params =  $.extend(params, extra_params);
@@ -187,7 +190,7 @@ $(document).ready(function(){
         dataType: "text",
         success : function (data) {
             $("#geneSeq").text(data);
-        }
+        },
     });
 
     //Popup
