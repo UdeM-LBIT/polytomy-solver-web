@@ -19,6 +19,7 @@ import json
 from ete2 import WebTreeApplication, PhyloTree, faces, Tree, TreeStyle
 from Bio.Phylo.Applications import _Phyml
 from Bio.Align.Applications import ClustalOmegaCommandline
+from Bio import SeqIO
 
 # project
 from algorithms.libpolytomysolver import PolytomySolver
@@ -57,8 +58,9 @@ def webplugin_app(environ, start_response, queries):
         seq_align = queries.get("seq_align", [None])[0]
         seq_format = queries.get("seq_format", [None])[0] #TODO: autodetection with Bio.SeqIO if this is "auto"
 
+
         # Use the ensembl tree of life?
-        if sp_tol == 1:
+        if sp_tol == "1":
             f = open(WEB_APP_FOLDER_PATH+'/ressources/ensembl.nw', 'r')
             speciesTree = f.read()
 
@@ -70,7 +72,7 @@ def webplugin_app(environ, start_response, queries):
         gn_tree_obj = TreeClass(TreeUtils.newick_preprocessing(geneTree)[0])
 
         # Contract low support branches (might want to add a y/n checkbox instead of running everytime with 0 as default)
-        if gn_contract_branches == 1:
+        if gn_contract_branches == "1":
             gn_tree_obj.contract_tree(seuil=float(gn_support_threshold), feature='dist')
 
         # PolytomySolver v1.2.5
@@ -98,7 +100,7 @@ def webplugin_app(environ, start_response, queries):
                 trees_mapped_reconciled.append(tree)
 
                 if not application._load_tree(treeid, tree):
-                    return '<b style="color:red;"> Cannot load the tree: %s' %treeid
+                    return '<b style="color:red;"> Cannot load the tree: %s </b>' %treeid
 
         # Dropdown for all trees
         trees_dropdown ="""<script>
@@ -115,11 +117,47 @@ def webplugin_app(environ, start_response, queries):
 
                             </script>"""%treeid +\
                                     """<select id="select_trees_dropdown">"""
-        if seq_align == 1:
-            geneSeq = clustalo(geneSeq, treeid)
 
-        trees_processed = phyml(geneSeq, trees_mapped_reconciled, treeid)
+        if (geneSeq == None):
+            return '<b style="color:red;">geneSeq empty</b>' #TODO : Toastr notif & check in JS?
 
+        # Write to file (PhyML and clustalo operate solely on files)
+        geneSeq_file_path = "utils/tmp/SEQS_%s.%s"%(treeid, seq_format)
+        with open(geneSeq_file_path, "w") as seqs_file:
+            seqs_file.write(geneSeq)
+
+        # Align?
+        if seq_align == "1":
+            print >> sys.stderr, "Align \n\n\n"
+            # Clustal only supports Phylip and Fasta
+            if seq_format == "nexus":
+                geneSeq_converted_file_path = "utils/tmp/SEQS_%s.%s"%(treeid, "aln")
+                SeqIO.convert(geneSeq_file_path, "nexus", geneSeq_converted_file_path, "clustal")
+                geneSeq_file_path = geneSeq_converted_file_path
+
+            # Align with Clustal Omega (outputs in fasta)
+            geneSeq_file_path = clustalo(geneSeq_file_path, treeid)
+
+            # PhyML only supports Nexus and Phylip
+            geneSeq_converted_file_path = "utils/tmp/SEQS_%s.%s"%(treeid, "phylip")
+            SeqIO.convert(geneSeq_file_path, "fasta", geneSeq_converted_file_path, "phylip")
+            geneSeq_file_path = geneSeq_converted_file_path
+
+            #
+            # TODO : Repair nexus file with Manuel's pyrepair
+            #
+
+        else:
+            # PhyML only supports Nexus and Phylip
+            if seq_format == "fasta":
+                geneSeq_converted_file_path = "utils/tmp/SEQS_%s.%s"%(treeid, "phylip")
+                SeqIO.convert(geneSeq_file_path, "fasta", geneSeq_converted_file_path, "phylip")
+                geneSeq_file_path = geneSeq_converted_file_path
+
+        # Calculate log-likelihood with PhyML
+        trees_processed = phyml(geneSeq_file_path, trees_mapped_reconciled, treeid)
+
+        # Sort in order of log-likelihood
         trees_processed.sort(key=lambda x: x.log_likelihood)
 
         for tree in trees_processed:
@@ -131,76 +169,66 @@ def webplugin_app(environ, start_response, queries):
 
 
 # ==============================================================================
-# Helper Functions
+# Wrapper functions for external binaries
 #
 # ==============================================================================
 
+def clustalo(geneSeq_file_path, treeid):
 
-def clustalo(geneSeq, treeid):
-
-    #TODO : Both clustalo and phyml write geneSeq to file...
-    if (geneSeq != None):
-        input_seqs = "%s/utils/clustalo_tmp/%s.nex" %(WEB_APP_FOLDER_PATH, treeid)
-        # Write sequences to file
-        with open(input_seqs, "w") as seqs_file:
-            seqs_file.write(geneSeq)
-
-    alignment_file = "%s/utils/clustalo_tmp/ALIGNED_%s.nex" %(WEB_APP_FOLDER_PATH, treeid)
-    clustalo = ClustalOmegaCommandline(cmd="utils/clustalo-1.2.0", infile=input_seqs, outfile=alignment_file, verbose=False, auto=True, outfmt="phy")
+    # Clustal Omega (v1.2.0)
+    # Multiple Sequence Alignment
+    alignment_file = "%s/utils/tmp/ALIGNED_%s.fasta" %(WEB_APP_FOLDER_PATH, treeid)
+    # Defaults output to fasta
+    clustalo = ClustalOmegaCommandline(cmd="utils/clustalo-1.2.0", infile=geneSeq_file_path, outfile=alignment_file, verbose=False, auto=True)
     clustalo()
 
-    with open (alignment_file, "r") as alignment:
-        return alignment.read()
+    return alignment_file
 
-def phyml(geneSeq, trees_processed, treeid):
+def phyml(geneSeq_file_path, trees_processed, treeid):
 
-    # Phyml - v20140520
+    input_trees = "%s/utils/tmp/%s.newick" %(WEB_APP_FOLDER_PATH, treeid)
+
+    # PhyML (v20140520)
     # Calculate the log likelihood of the output tree(s) and the given gene sequence data
-    if (geneSeq != None):
-        # Write sequences to file
-        with open("utils/phyml_tmp/%s.nex"%treeid, "w") as seqs_file:
-            seqs_file.write(geneSeq)
+    with open(input_trees, "w") as newick_file:
+        for tree in trees_processed:
+            # Write newick for trees in a .newick file named after the treeid of the first tree
+            # Convert all tree labels to gene names only
+            t_tmp = tree.copy()
+            leaves = t_tmp.get_leaves()
+            for leaf in leaves:
+                leaf.name=leaf.genes
+            newick_file.write(t_tmp.write(features=[])+"\n")
 
-        with open("utils/phyml_tmp/%s.newick"%treeid, "w") as newick_file:
-            for tree in trees_processed:
+    # Set everything up to run PhyML on the sequences and get the log likelihood for tree
+    phyml = _Phyml.PhymlCommandline(input=geneSeq_file_path, input_tree=input_trees, bootstrap=0)
+    phyml.set_parameter("-o","none")
+    phyml.program_name = 'utils/phyml'
+    phyml()
 
-                # Write newick for trees in a .newick file named after the treeid of the first tree
-                # Convert all tree labels to gene names only
-                t_tmp = tree.copy()
-                leaves = t_tmp.get_leaves()
-                for leaf in leaves:
-                    leaf.name=leaf.genes
-                newick_file.write(t_tmp.write(features=[])+"\n")
+    # Get file extension (nexus or phylip)
+    align_extension = os.path.splitext(geneSeq_file_path)[1]
 
-        # Set everything up to run phyml on the sequences and get the log likelihood for tree
-        input_seqs = "%s/utils/phyml_tmp/%s.nex" %(WEB_APP_FOLDER_PATH, treeid)
-        input_trees = "%s/utils/phyml_tmp/%s.newick" %(WEB_APP_FOLDER_PATH, treeid)
+    # PhyML output
+    output_stats = "%s/utils/tmp/SEQS_%s%s_phyml_stats.txt" %(WEB_APP_FOLDER_PATH, treeid, align_extension)
+    output_tree = "%s/utils/tmp/SEQS_%s%s_phyml_tree.txt" %(WEB_APP_FOLDER_PATH, treeid, align_extension)
 
-        phyml = _Phyml.PhymlCommandline(input=input_seqs, input_tree=input_trees, bootstrap=0)
-        phyml.set_parameter("-o","none")
-        phyml.program_name = 'utils/phyml'
-        phyml()
+    # Parse and fetch log-likelihood
+    ll_keyword = ". Log-likelihood:"
+    log_index = 0
+    with open(output_stats) as search:
+        for line in search:
+            if ll_keyword in line:
+                line = line.replace(ll_keyword, "")
+                trees_processed[log_index].log_likelihood=line.strip()
+                trees_processed[log_index].tree_number=log_index+1
+                log_index += 1
 
-        # Fetch phyml output
-        output_stats = "%s/utils/phyml_tmp/%s.nex_phyml_stats.txt" %(WEB_APP_FOLDER_PATH, treeid)
-        output_tree = "%s/utils/phyml_tmp/%s.nex_phyml_tree.txt" %(WEB_APP_FOLDER_PATH, treeid)
-
-        ll_keyword = ". Log-likelihood:"
-        log_index = 0
-
-        with open(output_stats) as search:
-            for line in search:
-                if ". Log-likelihood:" in line:
-                    line = line.replace(ll_keyword, "")
-                    trees_processed[log_index].log_likelihood=line.strip()
-                    trees_processed[log_index].tree_number=log_index+1
-                    log_index += 1
-
-        # Clean up tmp files
-        os.remove(input_seqs)
-        os.remove(input_trees)
-        os.remove(output_stats)
-        os.remove(output_tree)
+    # Clean up tmp files
+    os.remove(geneSeq_file_path)
+    os.remove(input_trees)
+    os.remove(output_stats)
+    os.remove(output_tree)
 
     return trees_processed
 
