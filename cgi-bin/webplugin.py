@@ -20,6 +20,8 @@ from ete2 import WebTreeApplication, PhyloTree, faces, Tree, TreeStyle
 from Bio.Phylo.Applications import _Phyml
 from Bio.Align.Applications import ClustalOmegaCommandline
 from Bio import SeqIO
+from Bio.Alphabet import IUPAC
+SEQUENCE_ALPHABET = {'dna':IUPAC.unambiguous_dna, 'rna':IUPAC.unambiguous_rna, 'protein':IUPAC.protein}
 
 # project
 from algorithms.libpolytomysolver import PolytomySolver
@@ -56,8 +58,9 @@ def webplugin_app(environ, start_response, queries):
         gn_support_threshold = queries.get("gn_support_threshold", [None])[0]
         gn_contract_branches = queries.get("gn_contract_branches", [None])[0]
         seq_align = queries.get("seq_align", [None])[0]
+        seq_data_type= queries.get("seq_data_type", [None])[0]
+        seq_calculate_dm = queries.get("seq_calculate_dm", [None])[0]
         seq_format = queries.get("seq_format", [None])[0] #TODO: autodetection with Bio.SeqIO if this is "auto"
-
 
         # Use the ensembl tree of life?
         if sp_tol == "1":
@@ -73,6 +76,7 @@ def webplugin_app(environ, start_response, queries):
 
         # Contract low support branches (might want to add a y/n checkbox instead of running everytime with 0 as default)
         if gn_contract_branches == "1":
+            print >> sys.stderr, "contracting \n\n\n\n\n"
             gn_tree_obj.contract_tree(seuil=float(gn_support_threshold), feature='dist')
 
         # PolytomySolver v1.2.5
@@ -126,10 +130,10 @@ def webplugin_app(environ, start_response, queries):
         with open(geneSeq_file_path, "w") as seqs_file:
             seqs_file.write(geneSeq)
 
-        # Align?
+        # ClustalO/PhyML pipeline
         if seq_align == "1":
-            print >> sys.stderr, "Align \n\n\n"
-            # Clustal only supports Phylip and Fasta
+            # Unaligned sequences
+            # (note : Clustal only supports Phylip and Fasta)
             if seq_format == "nexus":
                 geneSeq_converted_file_path = "utils/tmp/SEQS_%s.%s"%(treeid, "aln")
                 SeqIO.convert(geneSeq_file_path, "nexus", geneSeq_converted_file_path, "clustal")
@@ -138,21 +142,26 @@ def webplugin_app(environ, start_response, queries):
             # Align with Clustal Omega (outputs in fasta)
             geneSeq_file_path = clustalo(geneSeq_file_path, treeid)
 
-            # PhyML only supports Nexus and Phylip
-            geneSeq_converted_file_path = "utils/tmp/SEQS_%s.%s"%(treeid, "phylip")
-            SeqIO.convert(geneSeq_file_path, "fasta", geneSeq_converted_file_path, "phylip")
+            # (note : PhyML only supports Nexus and Phylip)
+            # NOTE : data_type is (so far) only for an intermediary step and shouldn't make much of a difference if correct or not... (untested)
+            geneSeq_converted_file_path = "utils/tmp/SEQS_%s.%s"%(treeid, "nexus")
+            SeqIO.convert(geneSeq_file_path, "clustal", geneSeq_converted_file_path, "nexus", alphabet=SEQUENCE_ALPHABET[seq_data_type])
             geneSeq_file_path = geneSeq_converted_file_path
 
             #
-            # TODO : Repair nexus file with Manuel's pyrepair
+            # TODO : Repair nexus file with Manuel's pyrepair?
+            # TODO : Calculate distance matrix from sequences
             #
 
         else:
-            # PhyML only supports Nexus and Phylip
+            # User Aligned
             if seq_format == "fasta":
-                geneSeq_converted_file_path = "utils/tmp/SEQS_%s.%s"%(treeid, "phylip")
-                SeqIO.convert(geneSeq_file_path, "fasta", geneSeq_converted_file_path, "phylip")
+                geneSeq_converted_file_path = "utils/tmp/SEQS_%s.%s"%(treeid, "nexus")
+                SeqIO.convert(geneSeq_file_path, "fasta", geneSeq_converted_file_path, "nexus", alphabet=SEQUENCE_ALPHABET[seq_data_type])
                 geneSeq_file_path = geneSeq_converted_file_path
+
+        # Small nexus format fixes for PhyML
+        nexus_repair(geneSeq_file_path)
 
         # Calculate log-likelihood with PhyML
         trees_processed = phyml(geneSeq_file_path, trees_mapped_reconciled, treeid)
@@ -170,8 +179,18 @@ def webplugin_app(environ, start_response, queries):
 
 # ==============================================================================
 # Wrapper functions for external binaries
-#
+# TODO : Integrate these in a separate library (preferably within python-tree-processing)
 # ==============================================================================
+
+def nexus_repair(nexus_file_path):
+    with open(nexus_file_path, "r") as nexus_file:
+        with open(nexus_file_path+".repaired", "w") as repaired:
+            for line in nexus_file:
+                if not "missing" in line:
+                    repaired.write(line)
+
+    os.remove(nexus_file_path)
+    os.rename(nexus_file_path+".repaired", nexus_file_path)
 
 def clustalo(geneSeq_file_path, treeid):
 
@@ -179,7 +198,8 @@ def clustalo(geneSeq_file_path, treeid):
     # Multiple Sequence Alignment
     alignment_file = "%s/utils/tmp/ALIGNED_%s.fasta" %(WEB_APP_FOLDER_PATH, treeid)
     # Defaults output to fasta
-    clustalo = ClustalOmegaCommandline(cmd="utils/clustalo-1.2.0", infile=geneSeq_file_path, outfile=alignment_file, verbose=False, auto=True)
+    # NOTE : DM calc : --max-hmm-iterations=-1 --distmat-out=globin.mat
+    clustalo = ClustalOmegaCommandline(cmd="utils/clustalo-1.2.0", infile=geneSeq_file_path, outfile=alignment_file, verbose=False, outfmt="clu", auto=True)
     clustalo()
 
     return alignment_file

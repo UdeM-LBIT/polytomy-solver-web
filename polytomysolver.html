@@ -64,13 +64,23 @@ var ete_webplugin_URL = "cgi-bin/webplugin.py"
         <li><textarea title="NEXUS or PHYLIP format" id="geneSeq"></textarea><br>
           Format :
           <select id="seq_format">
-              <option value="fasta">Fasta</option>
               <option value="nexus">Nexus</option>
+              <option value="fasta">Fasta</option>
               <option value="phylip">Phylip</option>
+          </select><br>
+          Data type :
+          <select id="seq_data_type">
+              <option value="dna">DNA</option>
+              <option value="rna">RNA</option>
+              <option value="protein">Protein</option>
           </select><br>
             <label for="seq_align" style="display:inline-block" >
                 Align
                 <input id="seq_align" type="checkbox" name="seq_align" />
+            </label> <br>
+            <label for="seq_calculate_dm" style="display:inline-block" >
+               Calculate distance matrix from sequences
+                <input id="seq_calculate_dm" type="checkbox" name="seq_align" />
             </label>
 
         </li>
@@ -93,7 +103,7 @@ var ete_webplugin_URL = "cgi-bin/webplugin.py"
 </div>
 
 <div style="clear:both;" >
-    <input type='submit'  value='Draw tree'  onClick='polytomysolver(random_tid(), $("#speciesTree").val(),$("#geneTree").val() ,$("#geneDistances").val(), $("#geneSeq").val(),"name", $("#sp_tol:checked").length,$("#gn_ensembl").val(),$("#gn_reroot_mode option:selected").val(),$("#gn_support_threshold").val(),$("gn_contract_branches:checked").length,$("#seq_format option:selected").val(),$("#seq_align:checked").length,"#polytomysolver_dropdown");'>
+    <input type='submit'  value='Draw tree'  onClick='polytomysolver(random_tid(), $("#speciesTree").val(),$("#geneTree").val() ,$("#geneDistances").val(), $("#geneSeq").val(),"name", $("#sp_tol:checked").length,$("#gn_ensembl").val(),$("#gn_reroot_mode option:selected").val(),$("#gn_support_threshold").val(),$("#gn_contract_branches:checked").length,$("#seq_format option:selected").val(),$("#seq_align:checked").length,$("#seq_data_type option:selected").val(),$("#seq_calculate_dm:checked").length,"#polytomysolver_dropdown");'>
 
 
     <input type='button' value='Clear' onClick='$(".ete_image").html("");'>

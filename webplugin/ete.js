@@ -35,7 +35,8 @@ function draw_tree(treeid, newick, recipient, show_features, extra_params){
 			}});
 }
 
-function polytomysolver(treeid, speciesTree, geneTree, geneDistances, geneSeq, show_features, sp_tol, gn_ensembl, gn_reroot_mode, gn_support_threshold, gn_contract_branches, seq_format, seq_align, recipient, extra_params){
+function polytomysolver(treeid, speciesTree, geneTree, geneDistances, geneSeq, show_features, sp_tol, gn_ensembl, gn_reroot_mode,
+        gn_support_threshold, gn_contract_branches, seq_format, seq_align, seq_data_type, seq_calculate_dm, recipient, extra_params){
 	var params = {
         "speciesTree": speciesTree,
 		"geneTree": geneTree,
@@ -49,7 +50,9 @@ function polytomysolver(treeid, speciesTree, geneTree, geneDistances, geneSeq, s
 		"gn_support_threshold": gn_support_threshold,
 		"gn_contract_branches": gn_contract_branches,
         "seq_format" : seq_format,
-        "seq_align" : seq_align};
+        "seq_align" : seq_align,
+        "seq_data_type" : seq_data_type,
+        "seq_calculate_dm" : seq_calculate_dm};
 
 	if ( extra_params != undefined ){
 		var params =  $.extend(params, extra_params);
@@ -65,7 +68,6 @@ function polytomysolver(treeid, speciesTree, geneTree, geneDistances, geneSeq, s
                 toastr.error("Oops! Something went wrong.");
 			    $( recipient ).html( '' );
 			}else{
-
 			//$(recipient).css("display","none");
 			$(recipient).find("img.ete_tree_img").load(function(){
 				$(recipient).fadeIn('short').css({"display":"inline-block" ,"min-height":$(recipient).height()});
