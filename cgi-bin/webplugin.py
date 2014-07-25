@@ -62,6 +62,9 @@ def webplugin_app(environ, start_response, queries):
         seq_calculate_dm = queries.get("seq_calculate_dm", [None])[0]
         seq_format = queries.get("seq_format", [None])[0] #TODO: autodetection with Bio.SeqIO if this is "auto"
 
+        if (geneSeq == None):
+            return '<b style="color:red;">geneSeq empty</b>' #TODO : Toastr notif & check in JS?
+
         # Use the ensembl tree of life?
         if sp_tol == "1":
             f = open(WEB_APP_FOLDER_PATH+'/ressources/ensembl.nw', 'r')
@@ -74,10 +77,51 @@ def webplugin_app(environ, start_response, queries):
         # Preprocess gene tree
         gn_tree_obj = TreeClass(TreeUtils.newick_preprocessing(geneTree)[0])
 
-        # Contract low support branches (might want to add a y/n checkbox instead of running everytime with 0 as default)
+        # Contract low support branches
         if gn_contract_branches == "1":
-            print >> sys.stderr, "contracting \n\n\n\n\n"
             gn_tree_obj.contract_tree(seuil=float(gn_support_threshold), feature='dist')
+
+        # ClustalO/PhyML pipeline
+        # Write to file (PhyML and ClustalO operate solely on files)
+        geneSeq_file_path = "utils/tmp/%s.%s"%(treeid, seq_format)
+        with open(geneSeq_file_path, "w") as seqs_file:
+            seqs_file.write(geneSeq)
+
+        alignment_path = "%s/utils/tmp/%s.aln" %(WEB_APP_FOLDER_PATH, treeid)
+        dist_matrix_path = "%s/utils/tmp/%s.mat" %(WEB_APP_FOLDER_PATH, treeid)
+
+        if seq_align == "1":
+            # Unaligned sequences
+            # (note : Clustal only supports Phylip and Fasta)
+            if seq_format == "nexus":
+                geneSeq_converted_file_path = "utils/tmp/%s.%s"%(treeid, "aln")
+                SeqIO.convert(geneSeq_file_path, "nexus", geneSeq_converted_file_path, "clustal")
+                geneSeq_file_path = geneSeq_converted_file_path
+
+            if seq_calculate_dm=="1":
+                clustalo(geneSeq_file_path, treeid, alignment_path, dist_matrix_path)
+                with open(dist_matrix_path, "r") as dist_matrix:
+                    geneDistances = dist_matrix.read()
+            else:
+                clustalo(geneSeq_file_path, treeid, alignment_path)
+
+            # (note : PhyML only supports Nexus and Phylip)
+            geneSeq_converted_file_path = "utils/tmp/%s.%s"%(treeid, "nexus")
+            SeqIO.convert(alignment_path, "clustal", geneSeq_converted_file_path, "nexus", alphabet=SEQUENCE_ALPHABET[seq_data_type])
+            geneSeq_file_path = geneSeq_converted_file_path
+
+        else:
+            # User Aligned
+            # (note : PhyML only supports Nexus and Phylip)
+            if seq_format == "fasta":
+                geneSeq_converted_file_path = "utils/tmp/%s.%s"%(treeid, "nexus")
+                SeqIO.convert(geneSeq_file_path, "fasta", geneSeq_converted_file_path, "nexus", alphabet=SEQUENCE_ALPHABET[seq_data_type])
+                geneSeq_file_path = geneSeq_converted_file_path
+
+            if seq_calculate_dm=="1":
+                clustalo(geneSeq_file_path, treeid, dist_matrix_out_path = dist_matrix_path)
+                with open(dist_matrix_path, "r") as dist_matrix:
+                    geneDistances = dist_matrix.read()
 
         # PolytomySolver v1.2.5
         # PolytomySolver(string speciesTreeString, string geneTreeString, string strDistances, string _rerootMode, bool _testEdgeRoots, bool _hasNonnegativeDistanceFlag, bool _useCache)
@@ -122,43 +166,6 @@ def webplugin_app(environ, start_response, queries):
                             </script>"""%treeid +\
                                     """<select id="select_trees_dropdown">"""
 
-        if (geneSeq == None):
-            return '<b style="color:red;">geneSeq empty</b>' #TODO : Toastr notif & check in JS?
-
-        # Write to file (PhyML and clustalo operate solely on files)
-        geneSeq_file_path = "utils/tmp/SEQS_%s.%s"%(treeid, seq_format)
-        with open(geneSeq_file_path, "w") as seqs_file:
-            seqs_file.write(geneSeq)
-
-        # ClustalO/PhyML pipeline
-        if seq_align == "1":
-            # Unaligned sequences
-            # (note : Clustal only supports Phylip and Fasta)
-            if seq_format == "nexus":
-                geneSeq_converted_file_path = "utils/tmp/SEQS_%s.%s"%(treeid, "aln")
-                SeqIO.convert(geneSeq_file_path, "nexus", geneSeq_converted_file_path, "clustal")
-                geneSeq_file_path = geneSeq_converted_file_path
-
-            # Align with Clustal Omega (outputs in fasta)
-            geneSeq_file_path = clustalo(geneSeq_file_path, treeid)
-
-            # (note : PhyML only supports Nexus and Phylip)
-            # NOTE : data_type is (so far) only for an intermediary step and shouldn't make much of a difference if correct or not... (untested)
-            geneSeq_converted_file_path = "utils/tmp/SEQS_%s.%s"%(treeid, "nexus")
-            SeqIO.convert(geneSeq_file_path, "clustal", geneSeq_converted_file_path, "nexus", alphabet=SEQUENCE_ALPHABET[seq_data_type])
-            geneSeq_file_path = geneSeq_converted_file_path
-
-            #
-            # TODO : Repair nexus file with Manuel's pyrepair?
-            # TODO : Calculate distance matrix from sequences
-            #
-
-        else:
-            # User Aligned
-            if seq_format == "fasta":
-                geneSeq_converted_file_path = "utils/tmp/SEQS_%s.%s"%(treeid, "nexus")
-                SeqIO.convert(geneSeq_file_path, "fasta", geneSeq_converted_file_path, "nexus", alphabet=SEQUENCE_ALPHABET[seq_data_type])
-                geneSeq_file_path = geneSeq_converted_file_path
 
         # Small nexus format fixes for PhyML
         nexus_repair(geneSeq_file_path)
@@ -192,17 +199,25 @@ def nexus_repair(nexus_file_path):
     os.remove(nexus_file_path)
     os.rename(nexus_file_path+".repaired", nexus_file_path)
 
-def clustalo(geneSeq_file_path, treeid):
+def clustalo(geneSeq_file_path, treeid, alignment_out_path="", dist_matrix_out_path=""):
 
     # Clustal Omega (v1.2.0)
     # Multiple Sequence Alignment
-    alignment_file = "%s/utils/tmp/ALIGNED_%s.fasta" %(WEB_APP_FOLDER_PATH, treeid)
-    # Defaults output to fasta
-    # NOTE : DM calc : --max-hmm-iterations=-1 --distmat-out=globin.mat
-    clustalo = ClustalOmegaCommandline(cmd="utils/clustalo-1.2.0", infile=geneSeq_file_path, outfile=alignment_file, verbose=False, outfmt="clu", auto=True)
-    clustalo()
+    # Output : [treeid].aln alignment file and [treeid].mat distance matrix
 
-    return alignment_file
+    if alignment_out_path and dist_matrix_out_path:
+        clustalo = ClustalOmegaCommandline(cmd="utils/clustalo-1.2.0", infile=geneSeq_file_path, outfile=alignment_out_path, verbose=False, outfmt="clu", auto=True)
+        clustalo.set_parameter("--distmat-out", dist_matrix_out_path)
+        clustalo.set_parameter("--full", True)
+    elif alignment_out_path and not dist_matrix_out_path:
+        clustalo = ClustalOmegaCommandline(cmd="utils/clustalo-1.2.0", infile=geneSeq_file_path, outfile=alignment_out_path, verbose=False, outfmt="clu", auto=True)
+    elif not alignment_out_path and dist_matrix_out_path:
+        clustalo = ClustalOmegaCommandline(cmd="utils/clustalo-1.2.0", infile=geneSeq_file_path, full=True, verbose=False)
+        clustalo.set_parameter("--max-hmm-iterations", "-1")
+        clustalo.set_parameter("--distmat-out", dist_matrix_out_path)
+        clustalo.set_parameter("--full", True)
+
+    clustalo()
 
 def phyml(geneSeq_file_path, trees_processed, treeid):
 
@@ -230,8 +245,8 @@ def phyml(geneSeq_file_path, trees_processed, treeid):
     align_extension = os.path.splitext(geneSeq_file_path)[1]
 
     # PhyML output
-    output_stats = "%s/utils/tmp/SEQS_%s%s_phyml_stats.txt" %(WEB_APP_FOLDER_PATH, treeid, align_extension)
-    output_tree = "%s/utils/tmp/SEQS_%s%s_phyml_tree.txt" %(WEB_APP_FOLDER_PATH, treeid, align_extension)
+    output_stats = "%s/utils/tmp/%s%s_phyml_stats.txt" %(WEB_APP_FOLDER_PATH, treeid, align_extension)
+    output_tree = "%s/utils/tmp/%s%s_phyml_tree.txt" %(WEB_APP_FOLDER_PATH, treeid, align_extension)
 
     # Parse and fetch log-likelihood
     ll_keyword = ". Log-likelihood:"
