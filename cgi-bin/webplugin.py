@@ -62,6 +62,8 @@ def webplugin_app(environ, start_response, queries):
         seq_calculate_dm = queries.get("seq_calculate_dm", [None])[0]
         seq_format = queries.get("seq_format", [None])[0] #TODO: autodetection with Bio.SeqIO if this is "auto"
 
+        cur_seq_format = seq_format # keep seq_format static
+
         if (geneSeq == None):
             return '<b style="color:red;">geneSeq empty</b>' #TODO : Toastr notif & check in JS?
 
@@ -98,8 +100,9 @@ def webplugin_app(environ, start_response, queries):
                 SeqIO.convert(geneSeq_file_path, "nexus", geneSeq_converted_file_path, "fasta")
                 geneSeq_file_path = geneSeq_converted_file_path
 
+            # calculate dist matrix
             if seq_calculate_dm=="1":
-                clustalo(geneSeq_file_path, treeid, alignment_path, dist_matrix_path)
+                clustalo(geneSeq_file_path, treeid, alignment_path, dist_matrix_path, aligned=True)
                 with open(dist_matrix_path, "r") as dist_matrix:
                     geneDistances = dist_matrix.read()
             else:
@@ -113,15 +116,22 @@ def webplugin_app(environ, start_response, queries):
         else:
             # User Aligned
             # (note : PhyML only supports Nexus and Phylip)
-            if seq_format == "fasta":
+
+            if seq_calculate_dm=="1":
+                # (note : Clustal only supports Phylip and Fasta)
+                if seq_format == "nexus":
+                    geneSeq_converted_file_path = "utils/tmp/%s.%s"%(treeid, "fasta")
+                    SeqIO.convert(geneSeq_file_path, "nexus", geneSeq_converted_file_path, "fasta")
+                    geneSeq_file_path = geneSeq_converted_file_path
+                    cur_seq_format = "fasta"
+                clustalo(geneSeq_file_path, treeid, dist_matrix_out_path = dist_matrix_path, aligned=False)
+                with open(dist_matrix_path, "r") as dist_matrix:
+                    geneDistances = dist_matrix.read()
+
+            if cur_seq_format == "fasta":
                 geneSeq_converted_file_path = "utils/tmp/%s.%s"%(treeid, "nexus")
                 SeqIO.convert(geneSeq_file_path, "fasta", geneSeq_converted_file_path, "nexus", alphabet=SEQUENCE_ALPHABET[seq_data_type])
                 geneSeq_file_path = geneSeq_converted_file_path
-
-            if seq_calculate_dm=="1":
-                clustalo(geneSeq_file_path, treeid, dist_matrix_out_path = dist_matrix_path)
-                with open(dist_matrix_path, "r") as dist_matrix:
-                    geneDistances = dist_matrix.read()
 
         # PolytomySolver v1.2.5
         # PolytomySolver(string speciesTreeString, string geneTreeString, string strDistances, string _rerootMode, bool _testEdgeRoots, bool _hasNonnegativeDistanceFlag, bool _useCache)
@@ -199,23 +209,24 @@ def nexus_repair(nexus_file_path):
     os.remove(nexus_file_path)
     os.rename(nexus_file_path+".repaired", nexus_file_path)
 
-def clustalo(geneSeq_file_path, treeid, alignment_out_path="", dist_matrix_out_path=""):
+def clustalo(geneSeq_file_path, treeid, alignment_out_path="", dist_matrix_out_path="", aligned=False):
 
     # Clustal Omega (v1.2.0)
     # Multiple Sequence Alignment
     # Output : [treeid].aln alignment file and [treeid].mat distance matrix
 
+    # output : alignment + dist matrix
     if alignment_out_path and dist_matrix_out_path:
-        clustalo = ClustalOmegaCommandline(cmd="utils/clustalo-1.2.0", infile=geneSeq_file_path, outfile=alignment_out_path, verbose=False, outfmt="clu", auto=True)
-        clustalo.set_parameter("--distmat-out", dist_matrix_out_path)
-        clustalo.set_parameter("--full", True)
+        clustalo = ClustalOmegaCommandline(cmd="utils/clustalo-1.2.0", infile=geneSeq_file_path, outfile=alignment_out_path, distmat_full=True, distmat_out=dist_matrix_out_path,verbose=False, outfmt="clu", auto=True)
+    # output : alignment
     elif alignment_out_path and not dist_matrix_out_path:
         clustalo = ClustalOmegaCommandline(cmd="utils/clustalo-1.2.0", infile=geneSeq_file_path, outfile=alignment_out_path, verbose=False, outfmt="clu", auto=True)
+    # output : dist matrix
     elif not alignment_out_path and dist_matrix_out_path:
-        clustalo = ClustalOmegaCommandline(cmd="utils/clustalo-1.2.0", infile=geneSeq_file_path, full=True, verbose=False)
-        clustalo.set_parameter("--max-hmm-iterations", "-1")
-        clustalo.set_parameter("--distmat-out", dist_matrix_out_path)
-        clustalo.set_parameter("--full", True)
+        if aligned:
+            clustalo = ClustalOmegaCommandline(cmd="utils/clustalo-1.2.0", infile=geneSeq_file_path, max_hmm_iterations=-1, distmat_full=True, distmat_out=dist_matrix_out_path, verbose=False)
+        else:
+            clustalo = ClustalOmegaCommandline(cmd="utils/clustalo-1.2.0", infile=geneSeq_file_path, max_hmm_iterations=-1, distmat_full=True, distmat_out=dist_matrix_out_path, dealign=True, verbose=False)
 
     clustalo()
 

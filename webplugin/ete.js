@@ -179,7 +179,7 @@ $(document).ready(function(){
 
     //Fill distances
     $.ajax({
-        url : "webplugin/example/geneDistances.dm",
+        url : "webplugin/example/geneDistances.mat",
         dataType: "text",
         success : function (data) {
             $("#geneDistances").text(data);
