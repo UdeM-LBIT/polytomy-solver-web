@@ -115,7 +115,6 @@ def webplugin_app(environ, start_response, queries):
 
         else:
             # User Aligned
-            # (note : PhyML only supports Nexus and Phylip)
 
             if seq_calculate_dm=="1":
                 # (note : Clustal only supports Phylip and Fasta)
@@ -128,6 +127,7 @@ def webplugin_app(environ, start_response, queries):
                 with open(dist_matrix_path, "r") as dist_matrix:
                     geneDistances = dist_matrix.read()
 
+            # (note : PhyML only supports Nexus and Phylip)
             if cur_seq_format == "fasta":
                 geneSeq_converted_file_path = "utils/tmp/%s.%s"%(treeid, "nexus")
                 SeqIO.convert(geneSeq_file_path, "fasta", geneSeq_converted_file_path, "nexus", alphabet=SEQUENCE_ALPHABET[seq_data_type])
