@@ -94,8 +94,8 @@ def webplugin_app(environ, start_response, queries):
             # Unaligned sequences
             # (note : Clustal only supports Phylip and Fasta)
             if seq_format == "nexus":
-                geneSeq_converted_file_path = "utils/tmp/%s.%s"%(treeid, "aln")
-                SeqIO.convert(geneSeq_file_path, "nexus", geneSeq_converted_file_path, "clustal")
+                geneSeq_converted_file_path = "utils/tmp/%s.%s"%(treeid, "fasta")
+                SeqIO.convert(geneSeq_file_path, "nexus", geneSeq_converted_file_path, "fasta")
                 geneSeq_file_path = geneSeq_converted_file_path
 
             if seq_calculate_dm=="1":
