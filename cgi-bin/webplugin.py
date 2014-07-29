@@ -48,19 +48,12 @@ def webplugin_app(environ, start_response, queries):
     # PolytomySolver
     #
     if asked_method[1]=="polytomysolver":
-        speciesTree = queries.get("speciesTree", [None])[0]
-        geneTree = queries.get("geneTree", [None])[0]
-        geneSeq = queries.get("geneSeq", [None])[0]
-        geneDistances = queries.get("geneDistances", [None])[0]
-        sp_tol = queries.get("sp_tol", [None])[0]
-        gn_ensembl_tree = queries.get("gn_ensembl", [None])[0]
-        gn_reroot_mode = queries.get("gn_reroot_mode", [None])[0]
-        gn_support_threshold = queries.get("gn_support_threshold", [None])[0]
-        gn_contract_branches = queries.get("gn_contract_branches", [None])[0]
-        seq_align = queries.get("seq_align", [None])[0]
-        seq_data_type= queries.get("seq_data_type", [None])[0]
-        seq_calculate_dm = queries.get("seq_calculate_dm", [None])[0]
-        seq_format = queries.get("seq_format", [None])[0] #TODO: autodetection with Bio.SeqIO if this is "auto"
+        # Fetch and assign local variable names according to the parameters specified by the user
+        # (note : keep as explicit list for reference)
+        for i in ('speciesTree', 'geneTree', 'geneSeq', 'geneDistances', 'sp_tol',
+                  'gn_ensembl_tree', 'gn_reroot_mode', 'gn_support_threshold', 'gn_contract_branches',
+                  'seq_align', 'seq_data_type','seq_format'):
+            locals()[i] = queries[i]
 
         cur_seq_format = seq_format # keep seq_format static
 
@@ -76,8 +69,8 @@ def webplugin_app(environ, start_response, queries):
                 return '<b style="color:red;">Error reading Ensembl tree</b>' #TODO : Toastr notif & check in JS?
 
         # Use an ensembl gene tree?
-        if gn_ensembl_tree:
-            geneTree = TreeUtils.fetch_ensembl_genetree_by_id(gn_ensembl_tree)
+        if gn_ensembl:
+            geneTree = TreeUtils.fetch_ensembl_genetree_by_id(gn_ensembl)
 
         # Preprocess gene tree
         gn_tree_obj = TreeClass(TreeUtils.newick_preprocessing(geneTree)[0])
