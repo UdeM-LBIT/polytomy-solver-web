@@ -100,6 +100,7 @@ def webplugin_app(environ, start_response, queries):
             if seq_format == "nexus":
                 geneSeq_converted_file_path = "utils/tmp/%s.%s"%(treeid, "fasta")
                 SeqIO.convert(geneSeq_file_path, "nexus", geneSeq_converted_file_path, "fasta")
+                os.remove(geneSeq_file_path)
                 geneSeq_file_path = geneSeq_converted_file_path
 
             # calculate dist matrix
@@ -107,12 +108,15 @@ def webplugin_app(environ, start_response, queries):
                 clustalo(geneSeq_file_path, treeid, alignment_path, dist_matrix_path, aligned=True)
                 with open(dist_matrix_path, "r") as dist_matrix:
                     geneDistances = dist_matrix.read()
+                os.remove(dist_matrix_path)
             else:
                 clustalo(geneSeq_file_path, treeid, alignment_path)
+                os.remove(geneSeq_file_path)
 
             # (note : PhyML only supports Nexus and Phylip)
             geneSeq_converted_file_path = "utils/tmp/%s.%s"%(treeid, "nexus")
             SeqIO.convert(alignment_path, "clustal", geneSeq_converted_file_path, "nexus", alphabet=SEQUENCE_ALPHABET[seq_data_type])
+            os.remove(alignment_path)
             geneSeq_file_path = geneSeq_converted_file_path
 
         else:
@@ -122,6 +126,7 @@ def webplugin_app(environ, start_response, queries):
                 if seq_format == "nexus":
                     geneSeq_converted_file_path = "utils/tmp/%s.%s"%(treeid, "fasta")
                     SeqIO.convert(geneSeq_file_path, "nexus", geneSeq_converted_file_path, "fasta")
+                    os.remove(geneSeq_file_path)
                     geneSeq_file_path = geneSeq_converted_file_path
                     cur_seq_format = "fasta"
                 clustalo(geneSeq_file_path, treeid, dist_matrix_out_path = dist_matrix_path, aligned=False)
@@ -133,6 +138,7 @@ def webplugin_app(environ, start_response, queries):
             if cur_seq_format == "fasta":
                 geneSeq_converted_file_path = "utils/tmp/%s.%s"%(treeid, "nexus")
                 SeqIO.convert(geneSeq_file_path, "fasta", geneSeq_converted_file_path, "nexus", alphabet=SEQUENCE_ALPHABET[seq_data_type])
+                os.remove(geneSeq_file_path)
                 geneSeq_file_path = geneSeq_converted_file_path
 
         # PolytomySolver v1.2.5
@@ -235,7 +241,7 @@ def clustalo(geneSeq_file_path, treeid, alignment_out_path="", dist_matrix_out_p
 
 def phyml(geneSeq_file_path, trees_processed, treeid):
 
-    input_trees = "utils/tmp/%s.newick" %(treeid)
+    input_trees = "utils/tmp/%s.newick" %treeid
 
     # PhyML (v20140520)
     # Calculate the log likelihood of the output tree(s) and the given gene sequence data
@@ -250,9 +256,7 @@ def phyml(geneSeq_file_path, trees_processed, treeid):
             newick_file.write(t_tmp.write(features=[])+"\n")
 
     # Set everything up to run PhyML on the sequences and get the log likelihood for tree
-    phyml = _Phyml.PhymlCommandline(input=geneSeq_file_path, input_tree=input_trees, bootstrap=0)
-    phyml.set_parameter("-o","none")
-    phyml.program_name = 'utils/phyml'
+    phyml = _Phyml.PhymlCommandline(cmd='utils/phyml', input=geneSeq_file_path, input_tree=input_trees, optimize="none", bootstrap=0)
     phyml()
 
     # Get file extension (nexus or phylip)
