@@ -27,8 +27,6 @@ SEQUENCE_ALPHABET = {'dna':IUPAC.unambiguous_dna, 'rna':IUPAC.unambiguous_rna, '
 from algorithms.libpolytomysolver import PolytomySolver
 from utils.TreeLib import TreeUtils, TreeClass
 
-# start virtual display
-xvfb=Display(visible=0, size=(1024, 768)).start()
 
 # In order to extend the default WebTreeApplication, we define our own WSGI function that handles URL queries
 def webplugin_app(environ, start_response, queries):
@@ -48,16 +46,23 @@ def webplugin_app(environ, start_response, queries):
     # PolytomySolver
     #
     if asked_method[1]=="polytomysolver":
-        # Fetch and assign local variable names according to the parameters specified by the user
-        # (note : keep as explicit list for reference)
-        for i in ('speciesTree', 'geneTree', 'geneSeq', 'geneDistances', 'sp_tol',
-                  'gn_ensembl_tree', 'gn_reroot_mode', 'gn_support_threshold', 'gn_contract_branches',
-                  'seq_align', 'seq_data_type','seq_format'):
-            locals()[i] = queries[i]
+        speciesTree = queries.get("speciesTree", [None])[0]
+        geneTree = queries.get("geneTree", [None])[0]
+        geneSeq = queries.get("geneSeq", [None])[0]
+        geneDistances = queries.get("geneDistances", [None])[0]
+        sp_tol = queries.get("sp_tol", [None])[0]
+        gn_ensembl = queries.get("gn_ensembl", [None])[0]
+        gn_reroot_mode = queries.get("gn_reroot_mode", [None])[0]
+        gn_support_threshold = queries.get("gn_support_threshold", [None])[0]
+        gn_contract_branches = queries.get("gn_contract_branches", [None])[0]
+        seq_align = queries.get("seq_align", [None])[0]
+        seq_data_type= queries.get("seq_data_type", [None])[0]
+        seq_calculate_dm = queries.get("seq_calculate_dm", [None])[0]
+        seq_format = queries.get("seq_format", [None])[0] #TODO: autodetection with Bio.SeqIO if this is "auto"
 
         cur_seq_format = seq_format # keep seq_format static
 
-        if (geneSeq == None):
+        if not geneSeq:
             return '<b style="color:red;">geneSeq empty</b>' #TODO : Toastr notif & check in JS?
 
         # Use the ensembl tree of life?
@@ -739,8 +744,6 @@ def tree_renderer(tree, treeid, application):
     except Exception as e:
         tree_ll = ""
 
-    # Now that the tree image (and final html) have been generated, stop the virtual X server.
-    xvfb.stop()
 
     # Let's return enriched HTML
     return tree_panel_html + tree_html + legend + newick + tree_ll
@@ -769,6 +772,9 @@ if __name__ == '__main__':
 	# and www-data (usally the apache user) cannot access display, try
 	# modifiying DISPLAY permisions by executing "xhost +"
 	# Alternatively, use pyvirtualdisplay for headless X (as used here).
+
+        # start virtual display
+        xvfb=Display(visible=0, size=(1024, 768)).start()
 	application.CONFIG["DISPLAY"] = str(xvfb.new_display_var)
 
 	# We extend the minimum WebTreeApplication with our own WSGI
@@ -851,3 +857,6 @@ if __name__ == '__main__':
 	#application.register_action("Clean layout", "layout", main_layout, None, None)
 
 	wsgiref.handlers.CGIHandler().run(application)
+
+        # When the process is about to end, stop the virtual X server.
+        xvfb.stop()
