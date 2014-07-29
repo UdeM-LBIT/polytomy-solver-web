@@ -69,8 +69,11 @@ def webplugin_app(environ, start_response, queries):
 
         # Use the ensembl tree of life?
         if sp_tol == "1":
-            f = open(WEB_APP_FOLDER_PATH+'/ressources/ensembl.nw', 'r')
-            speciesTree = f.read()
+            try:
+                f = open(WEB_APP_FOLDER_PATH+'/ressources/ensembl.newick', 'r')
+                speciesTree = f.read()
+            except IOError:
+                return '<b style="color:red;">Error reading Ensembl tree</b>' #TODO : Toastr notif & check in JS?
 
         # Use an ensembl gene tree?
         if gn_ensembl_tree:
@@ -83,14 +86,15 @@ def webplugin_app(environ, start_response, queries):
         if gn_contract_branches == "1":
             gn_tree_obj.contract_tree(seuil=float(gn_support_threshold), feature='dist')
 
+        # Prep output paths
+        alignment_path = "utils/tmp/%s.aln" %treeid
+        dist_matrix_path = "utils/tmp/%s.mat" %treeid
+        geneSeq_file_path = "utils/tmp/%s.%s"%(treeid, seq_format)
+
         # ClustalO/PhyML pipeline
         # Write to file (PhyML and ClustalO operate solely on files)
-        geneSeq_file_path = "utils/tmp/%s.%s"%(treeid, seq_format)
         with open(geneSeq_file_path, "w") as seqs_file:
             seqs_file.write(geneSeq)
-
-        alignment_path = "%s/utils/tmp/%s.aln" %(WEB_APP_FOLDER_PATH, treeid)
-        dist_matrix_path = "%s/utils/tmp/%s.mat" %(WEB_APP_FOLDER_PATH, treeid)
 
         if seq_align == "1":
             # Unaligned sequences
@@ -115,7 +119,6 @@ def webplugin_app(environ, start_response, queries):
 
         else:
             # User Aligned
-
             if seq_calculate_dm=="1":
                 # (note : Clustal only supports Phylip and Fasta)
                 if seq_format == "nexus":
@@ -126,6 +129,7 @@ def webplugin_app(environ, start_response, queries):
                 clustalo(geneSeq_file_path, treeid, dist_matrix_out_path = dist_matrix_path, aligned=False)
                 with open(dist_matrix_path, "r") as dist_matrix:
                     geneDistances = dist_matrix.read()
+                os.remove(dist_matrix_path)
 
             # (note : PhyML only supports Nexus and Phylip)
             if cur_seq_format == "fasta":
@@ -142,7 +146,7 @@ def webplugin_app(environ, start_response, queries):
 
         trees_mapped_reconciled = []
 
-        # Get list of trees
+        # Parse list of trees
         for line in polytomysolver_out.splitlines():
             if line[0] != "#":
                 tree = TreeClass(line)
@@ -232,7 +236,7 @@ def clustalo(geneSeq_file_path, treeid, alignment_out_path="", dist_matrix_out_p
 
 def phyml(geneSeq_file_path, trees_processed, treeid):
 
-    input_trees = "%s/utils/tmp/%s.newick" %(WEB_APP_FOLDER_PATH, treeid)
+    input_trees = "utils/tmp/%s.newick" %(treeid)
 
     # PhyML (v20140520)
     # Calculate the log likelihood of the output tree(s) and the given gene sequence data
@@ -256,8 +260,8 @@ def phyml(geneSeq_file_path, trees_processed, treeid):
     align_extension = os.path.splitext(geneSeq_file_path)[1]
 
     # PhyML output
-    output_stats = "%s/utils/tmp/%s%s_phyml_stats.txt" %(WEB_APP_FOLDER_PATH, treeid, align_extension)
-    output_tree = "%s/utils/tmp/%s%s_phyml_tree.txt" %(WEB_APP_FOLDER_PATH, treeid, align_extension)
+    output_stats = "utils/tmp/%s%s_phyml_stats.txt" %(treeid, align_extension)
+    output_tree = "utils/tmp/%s%s_phyml_tree.txt" %(treeid, align_extension)
 
     # Parse and fetch log-likelihood
     ll_keyword = ". Log-likelihood:"

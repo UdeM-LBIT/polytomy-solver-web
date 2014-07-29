@@ -1,7 +1,7 @@
 #NEXUS
 BEGIN DATA;
 dimensions ntax=60 nchar=654;
-interleave interleave=true datatype=DNA gap=-;
+format interleave=true datatype=DNA gap=-;
 
 matrix
 G0598028    --------------------------------------------------
