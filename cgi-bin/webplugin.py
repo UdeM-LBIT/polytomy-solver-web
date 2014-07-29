@@ -207,7 +207,8 @@ def nexus_repair(nexus_file_path):
     with open(nexus_file_path, "r") as nexus_file:
         with open(nexus_file_path+".repaired", "w") as repaired:
             for line in nexus_file:
-                if not "missing" in line:
+                #PhyML does not support the "missing" or "gap" format parameters
+                if not "missing" or not "gap" in line:
                     repaired.write(line)
 
     os.remove(nexus_file_path)
