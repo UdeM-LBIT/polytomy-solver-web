@@ -58,7 +58,7 @@ var ete_webplugin_URL = "cgi-bin/webplugin.py"
         </li>
 
         <h2>Gene Distances</h2>
-        <li><textarea title="Distance matrix (full or lower triangular)" id="geneDistances"></textarea></li>
+        <li><textarea title="Distance matrix in PHYLIP format (full or lower triangular)" id="geneDistances"></textarea></li>
 
         <h2>Gene Sequences</h2>
         <li><textarea title="FASTA, NEXUS or PHYLIP format" id="geneSeq"></textarea><br>
@@ -74,11 +74,11 @@ var ete_webplugin_URL = "cgi-bin/webplugin.py"
               <option value="rna">RNA</option>
               <option value="protein">Protein</option>
           </select><br>
-            <label for="seq_align" style="display:inline-block" >
+            <label for="seq_align" title="ClustalO v1.2.0" style="display:inline-block" >
                 Align
                 <input id="seq_align" type="checkbox" name="seq_align" />
             </label> <br>
-            <label for="seq_calculate_dm" style="display:inline-block" >
+            <label for="seq_calculate_dm" title="ClustalO v1.2.0" style="display:inline-block" >
                Calculate distance matrix from sequences
                 <input id="seq_calculate_dm" type="checkbox" name="seq_align" />
             </label>
