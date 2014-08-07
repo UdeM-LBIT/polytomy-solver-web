@@ -1,3 +1,6 @@
-WEB_APP_FOLDER_PATH = "/path/to/webapp"
-TMP_DIR_PATH = "/path/to/tmp/dir"
-TMP_WEB_RELATIVE_PATH = "path/to/tmp/relative/to/web/root"
+WEB_APP_BASE_PATH = "/full/path/to/webapp/root/"
+WEB_APP_CGI_PATH = WEB_APP_BASE_PATH + "cgi-bin/"
+TMP_TREE_RELATIVE_PATH = "webplugin/tmp/"
+TMP_TREE_PATH = WEB_APP_BASE_PATH + TMP_TREE_RELATIVE_PATH
+TMP_UTILS_RELATIVE_PATH = "utils/tmp/"
+TMP_UTILS_PATH = WEB_APP_BASE_PATH + "utils/tmp/"

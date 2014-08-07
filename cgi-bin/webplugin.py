@@ -4,8 +4,7 @@ import os, sys, re, cgi, time
 # settings.py
 from settings import *
 
-# Configure path accordingly
-sys.path.insert(0, WEB_APP_FOLDER_PATH)
+sys.path.insert(0, WEB_APP_CGI_PATH)
 
 # python
 from string import strip
@@ -21,12 +20,12 @@ from Bio.Phylo.Applications import _Phyml
 from Bio.Align.Applications import ClustalOmegaCommandline
 from Bio import SeqIO
 from Bio.Alphabet import IUPAC
-SEQUENCE_ALPHABET = {'dna':IUPAC.unambiguous_dna, 'rna':IUPAC.unambiguous_rna, 'protein':IUPAC.protein}
+SEQUENCE_ALPHABET = {'dna':IUPAC.ambiguous_dna, 'rna':IUPAC.ambiguous_rna, 'protein':IUPAC.protein}
 
 # project
 from algorithms.libpolytomysolver import PolytomySolver
+from utils import Multipolysolver
 from utils.TreeLib import TreeUtils, TreeClass
-
 
 # In order to extend the default WebTreeApplication, we define our own WSGI function that handles URL queries
 def webplugin_app(environ, start_response, queries):
@@ -35,7 +34,6 @@ def webplugin_app(environ, start_response, queries):
 
     # expected arguments from the URL (POST or GET method)
     treeid = queries.get("treeid", [None])[0]
-
     if not treeid:
         treeid = md5(str(time.time())).hexdigest()
 
@@ -68,10 +66,10 @@ def webplugin_app(environ, start_response, queries):
         # Use the ensembl tree of life?
         if sp_tol == "1":
             try:
-                f = open(WEB_APP_FOLDER_PATH+'/ressources/ensembl.newick', 'r')
+                f = open(WEB_APP_CGI_PATH+'ressources/ensembl.newick', 'r')
                 speciesTree = f.read()
             except IOError:
-                return '<b style="color:red;">Error reading Ensembl tree</b>' #TODO : Toastr notif & check in JS?
+                return '<b style="color:red;">Error reading Ensembl tree</b>' #TODO : if 500 then send to Toastr notif? also : check in JS?
 
         # Use an ensembl gene tree?
         if gn_ensembl:
@@ -85,23 +83,20 @@ def webplugin_app(environ, start_response, queries):
             gn_tree_obj.contract_tree(seuil=float(gn_support_threshold), feature='dist')
 
         # Prep output paths
-        alignment_path = "utils/tmp/%s.aln" %treeid
-        dist_matrix_path = "utils/tmp/%s.mat" %treeid
-        geneSeq_file_path = "utils/tmp/%s.%s"%(treeid, seq_format)
+        alignment_path = TMP_UTILS_PATH + treeid + ".aln"
+        dist_matrix_path = TMP_UTILS_PATH + treeid + ".mat"
+        geneSeq_file_path = TMP_UTILS_PATH + treeid + "." + seq_format
 
         # ClustalO/PhyML pipeline
         # Write to file (PhyML and ClustalO operate solely on files)
-        with open(geneSeq_file_path, "w") as seqs_file:
+        with open(geneSeq_file_path, 'w') as seqs_file:
             seqs_file.write(geneSeq)
 
         if seq_align == "1":
             # Unaligned sequences
             # (note : Clustal only supports Phylip and Fasta)
             if seq_format == "nexus":
-                geneSeq_converted_file_path = "utils/tmp/%s.%s"%(treeid, "fasta")
-                SeqIO.convert(geneSeq_file_path, "nexus", geneSeq_converted_file_path, "fasta")
-                os.remove(geneSeq_file_path)
-                geneSeq_file_path = geneSeq_converted_file_path
+                geneSeq_file_path = convert(geneSeq_file_path, "nexus", "fasta", treeid, seq_data_type)
 
             # calculate dist matrix
             if seq_calculate_dm=="1":
@@ -114,20 +109,14 @@ def webplugin_app(environ, start_response, queries):
                 os.remove(geneSeq_file_path)
 
             # (note : PhyML only supports Nexus and Phylip)
-            geneSeq_converted_file_path = "utils/tmp/%s.%s"%(treeid, "nexus")
-            SeqIO.convert(alignment_path, "clustal", geneSeq_converted_file_path, "nexus", alphabet=SEQUENCE_ALPHABET[seq_data_type])
-            os.remove(alignment_path)
-            geneSeq_file_path = geneSeq_converted_file_path
+            geneSeq_file_path = convert(alignment_path, "clustal", "nexus", treeid, seq_data_type)
 
         else:
             # User Aligned
-            if seq_calculate_dm=="1":
+            if seq_calculate_dm == "1":
                 # (note : Clustal only supports Phylip and Fasta)
                 if seq_format == "nexus":
-                    geneSeq_converted_file_path = "utils/tmp/%s.%s"%(treeid, "fasta")
-                    SeqIO.convert(geneSeq_file_path, "nexus", geneSeq_converted_file_path, "fasta")
-                    os.remove(geneSeq_file_path)
-                    geneSeq_file_path = geneSeq_converted_file_path
+                    geneSeq_file_path = convert(geneSeq_file_path, "nexus", "fasta", treeid, seq_data_type)
                     cur_seq_format = "fasta"
                 clustalo(geneSeq_file_path, treeid, dist_matrix_out_path = dist_matrix_path, aligned=False)
                 with open(dist_matrix_path, "r") as dist_matrix:
@@ -136,10 +125,7 @@ def webplugin_app(environ, start_response, queries):
 
             # (note : PhyML only supports Nexus and Phylip)
             if cur_seq_format == "fasta":
-                geneSeq_converted_file_path = "utils/tmp/%s.%s"%(treeid, "nexus")
-                SeqIO.convert(geneSeq_file_path, "fasta", geneSeq_converted_file_path, "nexus", alphabet=SEQUENCE_ALPHABET[seq_data_type])
-                os.remove(geneSeq_file_path)
-                geneSeq_file_path = geneSeq_converted_file_path
+                geneSeq_file_path = convert(geneSeq_file_path, "fasta", "nexus", treeid, seq_data_type)
 
         # PolytomySolver v1.2.5
         # PolytomySolver(string speciesTreeString, string geneTreeString, string strDistances, string _rerootMode, bool _testEdgeRoots, bool _hasNonnegativeDistanceFlag, bool _useCache)
@@ -169,21 +155,14 @@ def webplugin_app(environ, start_response, queries):
                     return '<b style="color:red;"> Cannot load the tree: %s </b>' %treeid
 
         # Dropdown for all trees
-        trees_dropdown ="""<script>
-                        $("#select_trees_dropdown").on("change", function(){
+        trees_dropdown ="""<script>$("#select_trees_dropdown").on("change", function(){
                             var sel = document.getElementById("select_trees_dropdown");
                             var selected_value = sel.options[sel.selectedIndex].value;
                             var selected_value_json = JSON.parse(selected_value);
-                            draw_tree(%s, selected_value_json.newick, "#img1", "name");
-                            });
-
+                            draw_tree(%s, selected_value_json.newick, "#img1", "name");});
                             $(document).ready(function() {
-                            $('#select_trees_dropdown').trigger("change");
-                            });
-
-                            </script>"""%treeid +\
-                                    """<select id="select_trees_dropdown">"""
-
+                            $('#select_trees_dropdown').trigger("change");});
+                            </script>"""%treeid + """<select id="select_trees_dropdown">"""
 
         # Small nexus format fixes for PhyML
         nexus_repair(geneSeq_file_path)
@@ -206,6 +185,15 @@ def webplugin_app(environ, start_response, queries):
 # Wrapper functions for external binaries
 # TODO : Integrate these in a separate library (preferably within python-tree-processing)
 # ==============================================================================
+
+def convert(in_file, in_format, out_format, treeid, seq_data_type):
+    out_file = TMP_UTILS_PATH + treeid + "." + out_format
+    #SeqIO responds to clustal as identifier for the format but the official extension is .aln
+    if seq_data_type == "clustal":
+        seq_data_type = ".aln"
+    SeqIO.convert(in_file, in_format, out_file, out_format, alphabet=SEQUENCE_ALPHABET[seq_data_type])
+    os.remove(in_file)
+    return out_file
 
 def nexus_repair(nexus_file_path):
     with open(nexus_file_path, "r") as nexus_file:
@@ -767,8 +755,8 @@ if __name__ == '__main__':
 	# your system, and the other the URL to access the same
 	# directory. Note that the referred directory must be writable by the
 	# webserver.
-	application.CONFIG["temp_dir"] = TMP_DIR_PATH
-	application.CONFIG["temp_url"] = TMP_WEB_RELATIVE_PATH # Relative to web site Document Root
+	application.CONFIG["temp_dir"] = TMP_TREE_PATH
+	application.CONFIG["temp_url"] = TMP_TREE_RELATIVE_PATH # Relative to web site Document Root
 
 	# Set the DISPLAY port that ETE should use to draw pictures. You will
 	# need a X server installed in your server and allow webserver user to
