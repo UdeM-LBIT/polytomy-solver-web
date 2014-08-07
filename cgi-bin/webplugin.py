@@ -61,7 +61,8 @@ def webplugin_app(environ, start_response, queries):
         cur_seq_format = seq_format # keep seq_format static
 
         if not geneSeq:
-            return '<b style="color:red;">geneSeq empty</b>' #TODO : Toastr notif & check in JS?
+            start_response(wsgiref.handlers.BaseCGIHandler.error_status, wsgiref.handlers.BaseHandler.error_headers, sys.exc_info())
+            return 'Error : Gene Sequences Empty'
 
         # Use the ensembl tree of life?
         if sp_tol == "1":
@@ -69,7 +70,8 @@ def webplugin_app(environ, start_response, queries):
                 f = open(WEB_APP_CGI_PATH+'ressources/ensembl.newick', 'r')
                 speciesTree = f.read()
             except IOError:
-                return '<b style="color:red;">Error reading Ensembl tree</b>' #TODO : if 500 then send to Toastr notif? also : check in JS?
+                start_response(wsgiref.handlers.BaseCGIHandler.error_status, wsgiref.handlers.BaseHandler.error_headers, sys.exc_info())
+                return 'Error : Error Reading Ensembl Tree'
 
         # Use an ensembl gene tree?
         if gn_ensembl:
@@ -132,7 +134,8 @@ def webplugin_app(environ, start_response, queries):
         if gn_reroot_mode in ["none","findbestroot","outputallroots"]:
             polytomysolver_out = PolytomySolver(str(speciesTree), gn_tree_obj.write(format=6).replace("%%",";;"), geneDistances, gn_reroot_mode, False, False, True)
         else:
-            return '<b style="color:red;"> PolytomySolver reroot mode error. </b>'
+            start_response(wsgiref.handlers.BaseCGIHandler.error_status, wsgiref.handlers.BaseHandler.error_headers, sys.exc_info())
+            return 'Error : Unknown PolytomySolver Reroot Mode'
 
         trees_mapped_reconciled = []
 
@@ -152,7 +155,8 @@ def webplugin_app(environ, start_response, queries):
                 trees_mapped_reconciled.append(tree)
 
                 if not application._load_tree(treeid, tree):
-                    return '<b style="color:red;"> Cannot load the tree: %s </b>' %treeid
+                    start_response(wsgiref.handlers.BaseCGIHandler.error_status, wsgiref.handlers.BaseHandler.error_headers, sys.exc_info())
+                    return 'Error : Cannot load the tree: %s' %treeid
 
         # Dropdown for all trees
         trees_dropdown ="""<script>$("#select_trees_dropdown").on("change", function(){
@@ -182,8 +186,8 @@ def webplugin_app(environ, start_response, queries):
 
 
 # ==============================================================================
-# Wrapper functions for external binaries
-# TODO : Integrate these in a separate library (preferably within python-tree-processing)
+# Misc helper functions
+# TODO : Integratesome of these in a separate library (preferably within python-tree-processing)
 # ==============================================================================
 
 def convert(in_file, in_format, out_format, treeid, seq_data_type):
@@ -248,7 +252,7 @@ def phyml(geneSeq_file_path, trees_processed, treeid):
     phyml()
 
     # Get file extension (nexus or phylip)
-    align_extension = os.path.splitext(geneSeq_file_path)[1]
+    align_extension = os.Gpath.splitext(geneSeq_file_path)[1]
 
     # PhyML output
     output_stats = "utils/tmp/%s%s_phyml_stats.txt" %(treeid, align_extension)

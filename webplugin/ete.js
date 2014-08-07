@@ -65,7 +65,7 @@ function polytomysolver(treeid, speciesTree, geneTree, geneDistances, geneSeq, s
 			function( response, status, xhr ) {
 
 			if ( status == "error" ) {
-                toastr.error("Oops! Something went wrong.");
+                 toastr.error(response);
 			    $( recipient ).html( '' );
 			}else{
 			//$(recipient).css("display","none");
