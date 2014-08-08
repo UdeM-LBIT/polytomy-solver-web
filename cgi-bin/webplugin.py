@@ -252,7 +252,7 @@ def phyml(geneSeq_file_path, trees_processed, treeid):
     phyml()
 
     # Get file extension (nexus or phylip)
-    align_extension = os.Gpath.splitext(geneSeq_file_path)[1]
+    align_extension = os.path.splitext(geneSeq_file_path)[1]
 
     # PhyML output
     output_stats = "utils/tmp/%s%s_phyml_stats.txt" %(treeid, align_extension)
