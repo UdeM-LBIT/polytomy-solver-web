@@ -10,6 +10,7 @@ sys.path.insert(0, WEB_APP_CGI_PATH)
 from string import strip
 from hashlib import md5
 from pyvirtualdisplay import Display
+from operator import itemgetter
 import _mysql
 import wsgiref.handlers
 import json
@@ -132,7 +133,7 @@ def webplugin_app(environ, start_response, queries):
         # PolytomySolver v1.2.5
         # PolytomySolver(string speciesTreeString, string geneTreeString, string strDistances, string _rerootMode, bool _testEdgeRoots, bool _hasNonnegativeDistanceFlag, bool _useCache)
         if gn_reroot_mode in ["none","findbestroot","outputallroots"]:
-            polytomysolver_out = PolytomySolver(str(speciesTree), gn_tree_obj.write(format=6).replace("%%",";;"), geneDistances, gn_reroot_mode, False, False, True)
+            polytomysolver_out = polytomy_solver(geneTree, speciesTree, geneDistances, gn_reroot_mode, 1, 1, 'upgma', 99999)
         else:
             start_response(wsgiref.handlers.BaseCGIHandler.error_status, wsgiref.handlers.BaseHandler.error_headers, sys.exc_info())
             return 'Error : Unknown PolytomySolver Reroot Mode'
@@ -140,30 +141,29 @@ def webplugin_app(environ, start_response, queries):
         trees_mapped_reconciled = []
 
         # Parse list of trees
-        for line in polytomysolver_out.splitlines():
-            if line[0] != "#":
-                tree = TreeClass(line)
-                speciesTree_obj = TreeClass(speciesTree)
+        for tree in polytomysolver_out:
+            tree = tree[0]
+            speciesTree_obj = TreeClass(speciesTree)
 
-                tree.set_species(sep="__",pos="postfix")
-                tree.set_genes(sep="__",pos="prefix")
+            #tree.set_species(sep="__",pos="postfix")
+            tree.set_genes(sep="__",pos="prefix")
 
-                lcamap = TreeUtils.lcaMapping(tree, speciesTree_obj)
+            lcamap = TreeUtils.lcaMapping(tree, speciesTree_obj)
 
-                # Reconcile gene and species tree
-                TreeUtils.reconcile(tree, lcamap)
-                trees_mapped_reconciled.append(tree)
+            # Reconcile gene and species tree
+            TreeUtils.reconcile(tree, lcamap)
+            trees_mapped_reconciled.append(tree)
 
-                if not application._load_tree(treeid, tree):
-                    start_response(wsgiref.handlers.BaseCGIHandler.error_status, wsgiref.handlers.BaseHandler.error_headers, sys.exc_info())
-                    return 'Error : Cannot load the tree: %s' %treeid
+            if not application._load_tree(treeid, tree):
+                start_response(wsgiref.handlers.BaseCGIHandler.error_status, wsgiref.handlers.BaseHandler.error_headers, sys.exc_info())
+                return 'Error : Cannot load the tree: %s' %treeid
 
         # Dropdown for all trees
         trees_dropdown ="""<script>$("#select_trees_dropdown").on("change", function(){
                             var sel = document.getElementById("select_trees_dropdown");
                             var selected_value = sel.options[sel.selectedIndex].value;
                             var selected_value_json = JSON.parse(selected_value);
-                            draw_tree(%s, selected_value_json.newick, "#img1", "name");});
+                            draw_tree(%s, selected_value_json.newick, "#img1", "name,species");});
                             $(document).ready(function() {
                             $('#select_trees_dropdown').trigger("change");});
                             </script>"""%treeid + """<select id="select_trees_dropdown">"""
@@ -187,7 +187,7 @@ def webplugin_app(environ, start_response, queries):
 
 # ==============================================================================
 # Misc helper functions
-# TODO : Integratesome of these in a separate library (preferably within python-tree-processing)
+# TODO : Integrate some of these in a separate library (preferably within python-tree-processing)
 # ==============================================================================
 
 def convert(in_file, in_format, out_format, treeid, seq_data_type):
@@ -198,6 +198,34 @@ def convert(in_file, in_format, out_format, treeid, seq_data_type):
     SeqIO.convert(in_file, in_format, out_file, out_format, alphabet=SEQUENCE_ALPHABET[seq_data_type])
     os.remove(in_file)
     return out_file
+
+def polytomy_solver(geneTree, speciesTree, distances, reroot_mode, sol_limit, path_limit, cluster_method, mval):
+    gene_tree, species_tree, distance_matrix, node_order = TreeUtils.polySolverPreprocessing(geneTree, speciesTree, distances)
+    tree_list=[gene_tree]
+
+    if reroot_mode == 'outputallroots':
+	tree_list.extend(gene_tree.reroot())
+    elif reroot_mode == 'findbestroot':
+	tree_list.extend(gene_tree.reroot())
+	dl_costs=[]
+	for genetree in tree_list:
+	    sol=Multipolysolver.solvePolytomy(gene_tree, species_tree, distance_matrix, node_order, sol_limit=1, method='upgma', path_limit=1, verbose=False)
+	    dl_costs.append(sol[0].cost)
+
+	best_dl = min(enumerate(dl_costs), key=itemgetter(1))[0]
+	tree_list = [tree_list[best_dl]]
+
+    count=0
+    final_list=[]
+    for genetree in tree_list:
+	polysolution = Multipolysolver.solvePolytomy(gene_tree, species_tree, distance_matrix, node_order, sol_limit=sol_limit, method=cluster_method, path_limit=path_limit, verbose=False, maxVal=mval)
+        for tree in polysolution:
+	    count+=1
+            if count <= sol_limit:
+                # outlog.write('>Tree %s; cost=%s'%(count, polysolution[0].cost))
+                final_list.append(polysolution)
+
+    return final_list
 
 def nexus_repair(nexus_file_path):
     with open(nexus_file_path, "r") as nexus_file:
@@ -563,7 +591,6 @@ def tree_renderer(tree, treeid, application):
 
     # Extracts from URL query the features that must be drawn in the tree
     asked_features = application.queries.get("show_features", ["name"])[0].split(",")
-    print >> sys.stderr, asked_features
 
     def update_features_avail(feature_key, name, col, fsize, fcolor, prefix, suffix):
         text_features_avail.setdefault(feature_key, [name, 0, col, fsize, fcolor, prefix, suffix])
