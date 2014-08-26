@@ -85,8 +85,12 @@ var ete_webplugin_URL = "cgi-bin/webplugin.py"
 
         </li>
 
-        <h2>Parameters</h2>
+        <h2>PolytomySolver</h2>
         <li>
+          <label for="solve_polytomy" style="display:inline-block" >
+          Run PolytomySolver
+                <input id="solve_polytomy" type="checkbox" name="solve_polytomy" />
+          </label> <br>
           Mode :
           <select id="gn_reroot_mode">
               <option value="outputallroots">Reroot (outputallroots)</option>
@@ -99,11 +103,24 @@ var ete_webplugin_URL = "cgi-bin/webplugin.py"
             Contract gene tree branches with support lower than : <input id="gn_support_threshold" type="textbox" value="0.0" name="gn_support_threshold">
             </label>
         </li>
+        <h2>ParalogyCorrector</h2>
+        <li>
+          <label for="correct_paralogy" style="display:inline-block" >
+          Run ParalogyCorrector
+                <input id="correct_paralogy" type="checkbox" name="correct_paralogy" />
+          </label> <br>
+                Orthologs :
+                <input id="add_ortholog" type='button' value='Add'>
+                <input id="rm_ortholog" type='button' value='Remove'>
+                <input id="rm_all_orthologs" type='button' value='Remove All'>
+            <div id="orthologs">
+            </div>
+        </li>
     </ul>
 </div>
 
 <div style="clear:both;" >
-    <input type='submit'  value='Draw tree'  onClick='polytomysolver(random_tid(), $("#speciesTree").val(),$("#geneTree").val() ,$("#geneDistances").val(), $("#geneSeq").val(),"name", $("#sp_tol:checked").length,$("#gn_ensembl").val(),$("#gn_reroot_mode option:selected").val(),$("#gn_support_threshold").val(),$("#gn_contract_branches:checked").length,$("#seq_format option:selected").val(),$("#seq_align:checked").length,$("#seq_data_type option:selected").val(),$("#seq_calculate_dm:checked").length,"#polytomysolver_dropdown");'>
+    <input type='submit'  value='Draw tree'  onClick='polytomysolver(random_tid(), $("#speciesTree").val(),$("#geneTree").val() ,$("#geneDistances").val(), $("#geneSeq").val(),"name", $("#sp_tol:checked").length,$("#gn_ensembl").val(),$("#gn_reroot_mode option:selected").val(),$("#gn_support_threshold").val(),$("#gn_contract_branches:checked").length,$("#seq_format option:selected").val(),$("#seq_align:checked").length,$("#seq_data_type option:selected").val(),$("#seq_calculate_dm:checked").length, get_orthologs(), $("#correct_paralogy:checked").length, $("#solve_polytomy:checked").length,"#polytomysolver_dropdown");'>
 
 
     <input type='button' value='Clear' onClick='$(".ete_image").html("");'>

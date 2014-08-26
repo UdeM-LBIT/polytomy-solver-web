@@ -36,7 +36,8 @@ function draw_tree(treeid, newick, recipient, show_features, extra_params){
 }
 
 function polytomysolver(treeid, speciesTree, geneTree, geneDistances, geneSeq, show_features, sp_tol, gn_ensembl, gn_reroot_mode,
-        gn_support_threshold, gn_contract_branches, seq_format, seq_align, seq_data_type, seq_calculate_dm, recipient, extra_params){
+        gn_support_threshold, gn_contract_branches, seq_format, seq_align, seq_data_type, seq_calculate_dm, pc_orthologs,
+        correct_paralogy, solve_polytomy, recipient, extra_params){
 	var params = {
         "speciesTree": speciesTree,
 		"geneTree": geneTree,
@@ -52,7 +53,11 @@ function polytomysolver(treeid, speciesTree, geneTree, geneDistances, geneSeq, s
         "seq_format" : seq_format,
         "seq_align" : seq_align,
         "seq_data_type" : seq_data_type,
-        "seq_calculate_dm" : seq_calculate_dm};
+        "seq_calculate_dm" : seq_calculate_dm,
+        "pc_orthologs" : pc_orthologs,
+        "correct_paralogy" : correct_paralogy,
+        "solve_polytomy" : solve_polytomy
+        };
 
 	if ( extra_params != undefined ){
 		var params =  $.extend(params, extra_params);
@@ -155,7 +160,47 @@ function show_box(e, box) {
 	box.show();
 }
 
+
+function add_orthologs(orthoCnt) {
+    $('#orthologs').append("<div id='ortho"+orthoCnt+"'><input id='"+ orthoCnt + "a' type='text' onClick=''> <input id='"+orthoCnt+"b' type='text' value='' onClick=''></div>");
+}
+
+function rm_orthologs(orthoCnt) {
+    $('#ortho'+orthoCnt).remove();
+}
+
+function get_orthologs(){
+    ortho_lst = [];
+    $("#orthologs").children().each(function(i, child){
+        var boxes = child.getElementsByTagName("input");
+        var pair = [ boxes[0].value,boxes[1].value];
+        ortho_lst.push(pair);
+    });
+
+    return JSON.stringify(ortho_lst);
+}
+
 $(document).ready(function(){
+    //Orthologs
+    var orthoCnt = 0;
+    $("#add_ortholog").click(function()
+        {
+            ++orthoCnt;
+            add_orthologs(orthoCnt);
+        });
+
+    $("#rm_ortholog").click(function()
+        {
+            rm_orthologs(orthoCnt);
+            --orthoCnt;
+        });
+
+    $("#rm_all_orthologs").click(function()
+        {
+            orthoCnt = 0;
+            $("#orthologs").empty();
+        });
+
     //Toastr
     toastr.options.positionClass = "toast-top-full-width";
 

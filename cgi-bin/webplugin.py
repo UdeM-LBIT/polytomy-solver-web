@@ -14,6 +14,7 @@ from operator import itemgetter
 import _mysql
 import wsgiref.handlers
 import json
+import yaml
 
 # toolkits
 from ete2 import WebTreeApplication, PhyloTree, faces, Tree, TreeStyle
@@ -24,7 +25,7 @@ from Bio.Alphabet import IUPAC
 SEQUENCE_ALPHABET = {'dna':IUPAC.ambiguous_dna, 'rna':IUPAC.ambiguous_rna, 'protein':IUPAC.protein}
 
 # project
-from algorithms.libpolytomysolver import PolytomySolver
+from algorithms.libpolytomysolver import ParalogyCorrector
 from utils import Multipolysolver
 from utils.TreeLib import TreeUtils, TreeClass
 
@@ -49,24 +50,26 @@ def webplugin_app(environ, start_response, queries):
         geneTree = queries.get("geneTree", [None])[0]
         geneSeq = queries.get("geneSeq", [None])[0]
         geneDistances = queries.get("geneDistances", [None])[0]
-        sp_tol = queries.get("sp_tol", [None])[0]
+        sp_tol = (queries.get("sp_tol", [None])[0] == "1")
         gn_ensembl = queries.get("gn_ensembl", [None])[0]
         gn_reroot_mode = queries.get("gn_reroot_mode", [None])[0]
         gn_support_threshold = queries.get("gn_support_threshold", [None])[0]
-        gn_contract_branches = queries.get("gn_contract_branches", [None])[0]
-        seq_align = queries.get("seq_align", [None])[0]
+        gn_contract_branches = (queries.get("gn_contract_branches", [None])[0] == "1")
+        seq_align = (queries.get("seq_align", [None])[0] == "1")
         seq_data_type= queries.get("seq_data_type", [None])[0]
-        seq_calculate_dm = queries.get("seq_calculate_dm", [None])[0]
+        seq_calculate_dm = (queries.get("seq_calculate_dm", [None])[0] == "1")
         seq_format = queries.get("seq_format", [None])[0] #TODO: autodetection with Bio.SeqIO if this is "auto"
+        pc_orthologs = queries.get("pc_orthologs", [None])[0]
+        correct_paralogy = (queries.get("correct_paralogy", [None])[0] == "1")
+        solve_polytomy = (queries.get("solve_polytomy", [None])[0] == "1")
 
-        cur_seq_format = seq_format # keep seq_format static
 
         if not geneSeq:
             start_response(wsgiref.handlers.BaseCGIHandler.error_status, wsgiref.handlers.BaseHandler.error_headers, sys.exc_info())
             return 'Error : Gene Sequences Empty'
 
         # Use the ensembl tree of life?
-        if sp_tol == "1":
+        if sp_tol:
             try:
                 f = open(WEB_APP_CGI_PATH+'ressources/ensembl.newick', 'r')
                 speciesTree = f.read()
@@ -82,58 +85,39 @@ def webplugin_app(environ, start_response, queries):
         gn_tree_obj = TreeClass(TreeUtils.newick_preprocessing(geneTree)[0])
 
         # Contract low support branches
-        if gn_contract_branches == "1":
+        if gn_contract_branches:
             gn_tree_obj.contract_tree(seuil=float(gn_support_threshold), feature='dist')
 
-        # Prep output paths
-        alignment_path = TMP_UTILS_PATH + treeid + ".aln"
-        dist_matrix_path = TMP_UTILS_PATH + treeid + ".mat"
-        geneSeq_file_path = TMP_UTILS_PATH + treeid + "." + seq_format
+        # Only correct paralogy
+        if correct_paralogy and not solve_polytomy:
+            speciesTree_obj = TreeClass(speciesTree)
+            # geneTree_obj = TreeClass(geneTree)
+            geneTree_obj = gn_tree_obj
+            geneTree_obj.set_species(sep="%%")
+            geneTree_obj.set_genes(sep="%%", pos="prefix")
 
-        # ClustalO/PhyML pipeline
-        # Write to file (PhyML and ClustalO operate solely on files)
-        with open(geneSeq_file_path, 'w') as seqs_file:
-            seqs_file.write(geneSeq)
+            # Get gene/species mapping as list of tuples
+            gn_sp_mapping = []
+            for node in geneTree_obj.get_leaves():
+                print >> sys.stderr, node.species
+                gn_sp_mapping.append((node.genes+";;"+node.get_species()[0],node.get_species()[0]))
+            print >> sys.stderr, gn_sp_mapping
 
-        if seq_align == "1":
-            # Unaligned sequences
-            # (note : Clustal only supports Phylip and Fasta)
-            if seq_format == "nexus":
-                geneSeq_file_path = convert(geneSeq_file_path, "nexus", "fasta", treeid, seq_data_type)
+            # Build list of tuples from user supplied orthologs
+            orthologs = strlol2lot(pc_orthologs)
+            print >> sys.stderr, orthologs
 
-            # calculate dist matrix
-            if seq_calculate_dm=="1":
-                clustalo(geneSeq_file_path, treeid, alignment_path, dist_matrix_path, aligned=True)
-                with open(dist_matrix_path, "r") as dist_matrix:
-                    geneDistances = dist_matrix.read()
-                os.remove(dist_matrix_path)
-            else:
-                clustalo(geneSeq_file_path, treeid, alignment_path)
-                os.remove(geneSeq_file_path)
+            # Run Paralogy Corrector
+            paralogy_corrected = ParalogyCorrector(geneTree, speciesTree, gn_sp_mapping, orthologs)
+            print >> sys.stderr, "paralogy corrected : "+ paralogy_corrected
 
-            # (note : PhyML only supports Nexus and Phylip)
-            geneSeq_file_path = convert(alignment_path, "clustal", "nexus", treeid, seq_data_type)
-
-        else:
-            # User Aligned
-            if seq_calculate_dm == "1":
-                # (note : Clustal only supports Phylip and Fasta)
-                if seq_format == "nexus":
-                    geneSeq_file_path = convert(geneSeq_file_path, "nexus", "fasta", treeid, seq_data_type)
-                    cur_seq_format = "fasta"
-                clustalo(geneSeq_file_path, treeid, dist_matrix_out_path = dist_matrix_path, aligned=False)
-                with open(dist_matrix_path, "r") as dist_matrix:
-                    geneDistances = dist_matrix.read()
-                os.remove(dist_matrix_path)
-
-            # (note : PhyML only supports Nexus and Phylip)
-            if cur_seq_format == "fasta":
-                geneSeq_file_path = convert(geneSeq_file_path, "fasta", "nexus", treeid, seq_data_type)
+        # Preprocess sequences and distance matrix (conversion with SeqIO / alignment and distance matrix calculation with ClustalO)
+        geneSeq_file_path = preprocess_seqs_and_distmat(seq_align, seq_calculate_dm, seq_data_type, seq_format, geneSeq, treeid)
 
         # PolytomySolver v1.2.5
         # PolytomySolver(string speciesTreeString, string geneTreeString, string strDistances, string _rerootMode, bool _testEdgeRoots, bool _hasNonnegativeDistanceFlag, bool _useCache)
         if gn_reroot_mode in ["none","findbestroot","outputallroots"]:
-            polytomysolver_out = polytomy_solver(geneTree, speciesTree, geneDistances, gn_reroot_mode, 1, 1, 'upgma', 99999)
+            polytomysolver_out = polytomy_solver(gn_tree_obj.write(), speciesTree, geneDistances, gn_reroot_mode, 1, 1, 'upgma', 99999)
         else:
             start_response(wsgiref.handlers.BaseCGIHandler.error_status, wsgiref.handlers.BaseHandler.error_headers, sys.exc_info())
             return 'Error : Unknown PolytomySolver Reroot Mode'
@@ -146,8 +130,9 @@ def webplugin_app(environ, start_response, queries):
             speciesTree_obj = TreeClass(speciesTree)
 
             #tree.set_species(sep="__",pos="postfix")
-            tree.set_genes(sep="__",pos="prefix")
+            tree.set_genes(sep="%%",pos="prefix")
 
+            print >> sys.stderr, tree
             lcamap = TreeUtils.lcaMapping(tree, speciesTree_obj)
 
             # Reconcile gene and species tree
@@ -164,8 +149,7 @@ def webplugin_app(environ, start_response, queries):
                             var selected_value = sel.options[sel.selectedIndex].value;
                             var selected_value_json = JSON.parse(selected_value);
                             draw_tree(%s, selected_value_json.newick, "#img1", "name,species");});
-                            $(document).ready(function() {
-                            $('#select_trees_dropdown').trigger("change");});
+                            $(document).ready(function() { $('#select_trees_dropdown').trigger("change");});
                             </script>"""%treeid + """<select id="select_trees_dropdown">"""
 
         # Small nexus format fixes for PhyML
@@ -190,6 +174,14 @@ def webplugin_app(environ, start_response, queries):
 # TODO : Integrate some of these in a separate library (preferably within python-tree-processing)
 # ==============================================================================
 
+# String list of lists to list of tuples
+def strlol2lot(strlol):
+    lol = yaml.load(strlol)
+    lot = []
+    for lst in lol:
+        lot.append((lst[0],lst[1]))
+    return lot
+
 def convert(in_file, in_format, out_format, treeid, seq_data_type):
     out_file = TMP_UTILS_PATH + treeid + "." + out_format
     #SeqIO responds to clustal as identifier for the format but the official extension is .aln
@@ -198,6 +190,55 @@ def convert(in_file, in_format, out_format, treeid, seq_data_type):
     SeqIO.convert(in_file, in_format, out_file, out_format, alphabet=SEQUENCE_ALPHABET[seq_data_type])
     os.remove(in_file)
     return out_file
+
+def preprocess_seqs_and_distmat(seq_align, seq_calculate_dm, seq_data_type, seq_format, geneSeq, treeid):
+
+    # Prep output paths
+    alignment_path = TMP_UTILS_PATH + treeid + ".aln"
+    dist_matrix_path = TMP_UTILS_PATH + treeid + ".mat"
+    geneSeq_file_path = TMP_UTILS_PATH + treeid + "." + seq_format
+
+    # ClustalO/PhyML pipeline
+    # Write to file (PhyML and ClustalO operate solely on files)
+    with open(geneSeq_file_path, 'w') as seqs_file:
+        seqs_file.write(geneSeq)
+
+    if seq_align:
+        # Unaligned sequences
+        # (note : Clustal only supports Phylip and Fasta)
+        if seq_format == "nexus":
+            geneSeq_file_path = convert(geneSeq_file_path, "nexus", "fasta", treeid, seq_data_type)
+
+        # calculate dist matrix
+        if seq_calculate_dm:
+            clustalo(geneSeq_file_path, treeid, alignment_path, dist_matrix_path, aligned=True)
+            with open(dist_matrix_path, "r") as dist_matrix:
+                geneDistances = dist_matrix.read()
+            os.remove(dist_matrix_path)
+        else:
+            clustalo(geneSeq_file_path, treeid, alignment_path)
+            os.remove(geneSeq_file_path)
+
+        # (note : PhyML only supports Nexus and Phylip)
+        geneSeq_file_path = convert(alignment_path, "clustal", "nexus", treeid, seq_data_type)
+
+    else:
+        # User Aligned
+        if seq_calculate_dm:
+            # (note : Clustal only supports Phylip and Fasta)
+            if seq_format == "nexus":
+                geneSeq_file_path = convert(geneSeq_file_path, "nexus", "fasta", treeid, seq_data_type)
+                seq_format = "fasta"
+            clustalo(geneSeq_file_path, treeid, dist_matrix_out_path = dist_matrix_path, aligned=False)
+            with open(dist_matrix_path, "r") as dist_matrix:
+                geneDistances = dist_matrix.read()
+            os.remove(dist_matrix_path)
+
+        # (note : PhyML only supports Nexus and Phylip)
+        if seq_format == "fasta":
+            geneSeq_file_path = convert(geneSeq_file_path, "fasta", "nexus", treeid, seq_data_type)
+
+    return geneSeq_file_path
 
 def polytomy_solver(geneTree, speciesTree, distances, reroot_mode, sol_limit, path_limit, cluster_method, mval):
     gene_tree, species_tree, distance_matrix, node_order = TreeUtils.polySolverPreprocessing(geneTree, speciesTree, distances)
