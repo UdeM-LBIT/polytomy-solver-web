@@ -62,7 +62,8 @@ def webplugin_app(environ, start_response, queries):
         pc_orthologs = queries.get("pc_orthologs", [None])[0]
         correct_paralogy = (queries.get("correct_paralogy", [None])[0] == "1")
         solve_polytomy = (queries.get("solve_polytomy", [None])[0] == "1")
-
+        poly_path_limit = queries.get("poly_path_limit", [None])[0]
+        poly_sol_limit = queries.get("poly_sol_limit", [None])[0]
 
         if not geneSeq:
             start_response(wsgiref.handlers.BaseCGIHandler.error_status, wsgiref.handlers.BaseHandler.error_headers, sys.exc_info())
@@ -117,7 +118,7 @@ def webplugin_app(environ, start_response, queries):
         # PolytomySolver v1.2.5
         # PolytomySolver(string speciesTreeString, string geneTreeString, string strDistances, string _rerootMode, bool _testEdgeRoots, bool _hasNonnegativeDistanceFlag, bool _useCache)
         if gn_reroot_mode in ["none","findbestroot","outputallroots"]:
-            polytomysolver_out = polytomy_solver(gn_tree_obj.write(), speciesTree, geneDistances, gn_reroot_mode, 1, 1, 'upgma', 99999)
+            polytomysolver_out = polytomy_solver(gn_tree_obj.write(), speciesTree, geneDistances, gn_reroot_mode, int(poly_sol_limit), int(poly_path_limit), 'upgma', 1e305)
         else:
             start_response(wsgiref.handlers.BaseCGIHandler.error_status, wsgiref.handlers.BaseHandler.error_headers, sys.exc_info())
             return 'Error : Unknown PolytomySolver Reroot Mode'
@@ -126,13 +127,11 @@ def webplugin_app(environ, start_response, queries):
 
         # Parse list of trees
         for tree in polytomysolver_out:
-            tree = tree[0]
             speciesTree_obj = TreeClass(speciesTree)
 
             #tree.set_species(sep="__",pos="postfix")
             tree.set_genes(sep="%%",pos="prefix")
 
-            print >> sys.stderr, tree
             lcamap = TreeUtils.lcaMapping(tree, speciesTree_obj)
 
             # Reconcile gene and species tree
@@ -241,6 +240,7 @@ def preprocess_seqs_and_distmat(seq_align, seq_calculate_dm, seq_data_type, seq_
     return geneSeq_file_path
 
 def polytomy_solver(geneTree, speciesTree, distances, reroot_mode, sol_limit, path_limit, cluster_method, mval):
+ 
     gene_tree, species_tree, distance_matrix, node_order = TreeUtils.polySolverPreprocessing(geneTree, speciesTree, distances)
     tree_list=[gene_tree]
 
@@ -250,7 +250,7 @@ def polytomy_solver(geneTree, speciesTree, distances, reroot_mode, sol_limit, pa
 	tree_list.extend(gene_tree.reroot())
 	dl_costs=[]
 	for genetree in tree_list:
-	    sol=Multipolysolver.solvePolytomy(gene_tree, species_tree, distance_matrix, node_order, sol_limit=1, method='upgma', path_limit=1, verbose=False)
+	    sol=Multipolysolver.solvePolytomy(genetree, species_tree, distance_matrix, node_order, sol_limit=1, method='upgma', path_limit=1, verbose=False)
 	    dl_costs.append(sol[0].cost)
 
 	best_dl = min(enumerate(dl_costs), key=itemgetter(1))[0]
@@ -259,12 +259,13 @@ def polytomy_solver(geneTree, speciesTree, distances, reroot_mode, sol_limit, pa
     count=0
     final_list=[]
     for genetree in tree_list:
-	polysolution = Multipolysolver.solvePolytomy(gene_tree, species_tree, distance_matrix, node_order, sol_limit=sol_limit, method=cluster_method, path_limit=path_limit, verbose=False, maxVal=mval)
+	polysolution = Multipolysolver.solvePolytomy(genetree, species_tree, distance_matrix, node_order, sol_limit=sol_limit, method=cluster_method, path_limit=path_limit, verbose=False, maxVal=mval)
         for tree in polysolution:
 	    count+=1
-            if count <= sol_limit:
-                # outlog.write('>Tree %s; cost=%s'%(count, polysolution[0].cost))
-                final_list.append(polysolution)
+            # outlog.write('>Tree %s; cost=%s'%(count, polysolution[0].cost))
+            # if count <= sol_limit:
+            # if tree.write(features=[]) not in [t.write(features=[]) for t in final_list]:
+            final_list.append(tree)
 
     return final_list
 

@@ -37,7 +37,7 @@ function draw_tree(treeid, newick, recipient, show_features, extra_params){
 
 function polytomysolver(treeid, speciesTree, geneTree, geneDistances, geneSeq, show_features, sp_tol, gn_ensembl, gn_reroot_mode,
         gn_support_threshold, gn_contract_branches, seq_format, seq_align, seq_data_type, seq_calculate_dm, pc_orthologs,
-        correct_paralogy, solve_polytomy, recipient, extra_params){
+        correct_paralogy, solve_polytomy, poly_sol_limit, poly_path_limit, recipient, extra_params){
 	var params = {
         "speciesTree": speciesTree,
 		"geneTree": geneTree,
@@ -56,7 +56,9 @@ function polytomysolver(treeid, speciesTree, geneTree, geneDistances, geneSeq, s
         "seq_calculate_dm" : seq_calculate_dm,
         "pc_orthologs" : pc_orthologs,
         "correct_paralogy" : correct_paralogy,
-        "solve_polytomy" : solve_polytomy
+        "solve_polytomy" : solve_polytomy,
+        "poly_sol_limit" : poly_sol_limit,
+        "poly_path_limit" : poly_path_limit,
         };
 
 	if ( extra_params != undefined ){

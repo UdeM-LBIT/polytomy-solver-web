@@ -102,6 +102,14 @@ var ete_webplugin_URL = "cgi-bin/webplugin.py"
             <input id="gn_contract_branches" type="checkbox" name="seq_align" />
             Contract gene tree branches with support lower than : <input id="gn_support_threshold" type="textbox" value="0.0" name="gn_support_threshold">
             </label>
+          <br>
+            <label for="poly_sol_limit" style="display:inline-block">
+            Solution Limit : <input id="poly_sol_limit" type="textbox" value="20" >
+            </label>
+          <br>
+            <label for="poly_path_limit" style="display:inline-block">
+            Path Limit : <input id="poly_path_limit" type="textbox" value="5" >
+            </label>
         </li>
         <h2>ParalogyCorrector</h2>
         <li>
@@ -120,7 +128,7 @@ var ete_webplugin_URL = "cgi-bin/webplugin.py"
 </div>
 
 <div style="clear:both;" >
-    <input type='submit'  value='Draw tree'  onClick='polytomysolver(random_tid(), $("#speciesTree").val(),$("#geneTree").val() ,$("#geneDistances").val(), $("#geneSeq").val(),"name", $("#sp_tol:checked").length,$("#gn_ensembl").val(),$("#gn_reroot_mode option:selected").val(),$("#gn_support_threshold").val(),$("#gn_contract_branches:checked").length,$("#seq_format option:selected").val(),$("#seq_align:checked").length,$("#seq_data_type option:selected").val(),$("#seq_calculate_dm:checked").length, get_orthologs(), $("#correct_paralogy:checked").length, $("#solve_polytomy:checked").length,"#polytomysolver_dropdown");'>
+    <input type='submit'  value='Draw tree'  onClick='polytomysolver(random_tid(), $("#speciesTree").val(),$("#geneTree").val() ,$("#geneDistances").val(), $("#geneSeq").val(),"name", $("#sp_tol:checked").length,$("#gn_ensembl").val(),$("#gn_reroot_mode option:selected").val(),$("#gn_support_threshold").val(),$("#gn_contract_branches:checked").length,$("#seq_format option:selected").val(),$("#seq_align:checked").length,$("#seq_data_type option:selected").val(),$("#seq_calculate_dm:checked").length,$("#poly_sol_limit").val(),$("#poly_path_limit").val(), get_orthologs(), $("#correct_paralogy:checked").length, $("#solve_polytomy:checked").length,"#polytomysolver_dropdown");'>
 
 
     <input type='button' value='Clear' onClick='$(".ete_image").html("");'>
