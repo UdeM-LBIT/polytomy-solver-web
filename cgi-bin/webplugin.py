@@ -89,9 +89,10 @@ def webplugin_app(environ, start_response, queries):
         if gn_contract_branches:
             gn_tree_obj.contract_tree(seuil=float(gn_support_threshold), feature='dist')
 
+        speciesTree_obj = TreeClass(speciesTree)
+
         # Only correct paralogy
         if correct_paralogy and not solve_polytomy:
-            speciesTree_obj = TreeClass(speciesTree)
             # geneTree_obj = TreeClass(geneTree)
             geneTree_obj = gn_tree_obj
             geneTree_obj.set_species(sep="%%")
@@ -100,17 +101,14 @@ def webplugin_app(environ, start_response, queries):
             # Get gene/species mapping as list of tuples
             gn_sp_mapping = []
             for node in geneTree_obj.get_leaves():
-                print >> sys.stderr, node.species
                 gn_sp_mapping.append((node.genes+";;"+node.get_species()[0],node.get_species()[0]))
             print >> sys.stderr, gn_sp_mapping
 
             # Build list of tuples from user supplied orthologs
             orthologs = strlol2lot(pc_orthologs)
-            print >> sys.stderr, orthologs
 
             # Run Paralogy Corrector
             paralogy_corrected = ParalogyCorrector(geneTree, speciesTree, gn_sp_mapping, orthologs)
-            print >> sys.stderr, "paralogy corrected : "+ paralogy_corrected
 
         # Preprocess sequences and distance matrix (conversion with SeqIO / alignment and distance matrix calculation with ClustalO)
         geneSeq_file_path = preprocess_seqs_and_distmat(seq_align, seq_calculate_dm, seq_data_type, seq_format, geneSeq, treeid)
@@ -127,8 +125,6 @@ def webplugin_app(environ, start_response, queries):
 
         # Parse list of trees
         for tree in polytomysolver_out:
-            speciesTree_obj = TreeClass(speciesTree)
-
             #tree.set_species(sep="__",pos="postfix")
             tree.set_genes(sep="%%",pos="prefix")
 
@@ -142,15 +138,6 @@ def webplugin_app(environ, start_response, queries):
                 start_response(wsgiref.handlers.BaseCGIHandler.error_status, wsgiref.handlers.BaseHandler.error_headers, sys.exc_info())
                 return 'Error : Cannot load the tree: %s' %treeid
 
-        # Dropdown for all trees
-        trees_dropdown ="""<script>$("#select_trees_dropdown").on("change", function(){
-                            var sel = document.getElementById("select_trees_dropdown");
-                            var selected_value = sel.options[sel.selectedIndex].value;
-                            var selected_value_json = JSON.parse(selected_value);
-                            draw_tree(%s, selected_value_json.newick, "#img1", "name,species");});
-                            $(document).ready(function() { $('#select_trees_dropdown').trigger("change");});
-                            </script>"""%treeid + """<select id="select_trees_dropdown">"""
-
         # Small nexus format fixes for PhyML
         nexus_repair(geneSeq_file_path)
 
@@ -160,9 +147,18 @@ def webplugin_app(environ, start_response, queries):
         # Sort in order of log-likelihood
         trees_processed.sort(key=lambda x: x.log_likelihood)
 
+        # Dropdown for all trees
+        trees_dropdown ="""<script>$("#select_trees_dropdown").on("change", function(){
+                            var sel = document.getElementById("select_trees_dropdown");
+                            var selected_value = sel.options[sel.selectedIndex].value;
+                            var selected_value_json = JSON.parse(selected_value);
+                            draw_tree(%s, selected_value_json.newick, "#img1", "name,species");});
+                            $(document).ready(function() { $('#select_trees_dropdown').trigger("change");});
+                            </script>"""%treeid + """<select id="select_trees_dropdown">"""
+
         for tree in trees_processed:
-            value = json.dumps({"newick":tree.write(features=[]),"log-likelihood":tree.log_likelihood})
-            trees_dropdown += "<option value='%s'>Tree %d (Log-likelihood : %s)</option>"%(value,tree.tree_number,tree.log_likelihood)
+            value = json.dumps({"newick":tree.write(features=[]),"log-likelihood":tree.log_likelihood, "cost":tree.cost})
+            trees_dropdown += "<option value='%s'>Tree %d (Log-likelihood : %s) (Cost : %d)</option>"%(value,tree.tree_number,tree.log_likelihood, tree.cost)
         trees_dropdown += '</select>'
 
         return trees_dropdown
@@ -181,6 +177,7 @@ def strlol2lot(strlol):
         lot.append((lst[0],lst[1]))
     return lot
 
+# SeqIO simplified wrapper sequence file conversion
 def convert(in_file, in_format, out_format, treeid, seq_data_type):
     out_file = TMP_UTILS_PATH + treeid + "." + out_format
     #SeqIO responds to clustal as identifier for the format but the official extension is .aln
@@ -190,6 +187,8 @@ def convert(in_file, in_format, out_format, treeid, seq_data_type):
     os.remove(in_file)
     return out_file
 
+# Bulk of the ClustalO/PhyML pipeline
+# Handles alignment, distance matrix calculation and file conversion
 def preprocess_seqs_and_distmat(seq_align, seq_calculate_dm, seq_data_type, seq_format, geneSeq, treeid):
 
     # Prep output paths
@@ -239,8 +238,9 @@ def preprocess_seqs_and_distmat(seq_align, seq_calculate_dm, seq_data_type, seq_
 
     return geneSeq_file_path
 
+# PolytomySolver simplified wrapper
 def polytomy_solver(geneTree, speciesTree, distances, reroot_mode, sol_limit, path_limit, cluster_method, mval):
- 
+
     gene_tree, species_tree, distance_matrix, node_order = TreeUtils.polySolverPreprocessing(geneTree, speciesTree, distances)
     tree_list=[gene_tree]
 
@@ -256,19 +256,15 @@ def polytomy_solver(geneTree, speciesTree, distances, reroot_mode, sol_limit, pa
 	best_dl = min(enumerate(dl_costs), key=itemgetter(1))[0]
 	tree_list = [tree_list[best_dl]]
 
-    count=0
     final_list=[]
     for genetree in tree_list:
 	polysolution = Multipolysolver.solvePolytomy(genetree, species_tree, distance_matrix, node_order, sol_limit=sol_limit, method=cluster_method, path_limit=path_limit, verbose=False, maxVal=mval)
         for tree in polysolution:
-	    count+=1
-            # outlog.write('>Tree %s; cost=%s'%(count, polysolution[0].cost))
-            # if count <= sol_limit:
-            # if tree.write(features=[]) not in [t.write(features=[]) for t in final_list]:
             final_list.append(tree)
 
     return final_list
 
+# Small fix to Nexus files going through PhyML
 def nexus_repair(nexus_file_path):
     with open(nexus_file_path, "r") as nexus_file:
         with open(nexus_file_path+".repaired", "w") as repaired:
@@ -280,11 +276,9 @@ def nexus_repair(nexus_file_path):
     os.remove(nexus_file_path)
     os.rename(nexus_file_path+".repaired", nexus_file_path)
 
+# Clustal Omega (v1.2.0) - Multiple Sequence Alignment
+# Output : [treeid].aln alignment file and [treeid].mat distance matrix
 def clustalo(geneSeq_file_path, treeid, alignment_out_path="", dist_matrix_out_path="", aligned=False):
-
-    # Clustal Omega (v1.2.0)
-    # Multiple Sequence Alignment
-    # Output : [treeid].aln alignment file and [treeid].mat distance matrix
 
     # output : alignment + dist matrix
     if alignment_out_path and dist_matrix_out_path:
@@ -301,12 +295,12 @@ def clustalo(geneSeq_file_path, treeid, alignment_out_path="", dist_matrix_out_p
 
     clustalo()
 
+# PhyML (v20140520)
+# Calculate the log likelihood of the output tree(s) and the given gene sequence data
 def phyml(geneSeq_file_path, trees_processed, treeid):
 
     input_trees = "utils/tmp/%s.newick" %treeid
 
-    # PhyML (v20140520)
-    # Calculate the log likelihood of the output tree(s) and the given gene sequence data
     with open(input_trees, "w") as newick_file:
         for tree in trees_processed:
             # Write newick for trees in a .newick file named after the treeid of the first tree
