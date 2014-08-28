@@ -83,7 +83,8 @@ def webplugin_app(environ, start_response, queries):
             geneTree = TreeUtils.fetch_ensembl_genetree_by_id(gn_ensembl)
 
         # Preprocess gene tree
-        gn_tree_obj = TreeClass(TreeUtils.newick_preprocessing(geneTree)[0])
+        geneTree, separator = TreeUtils.newick_preprocessing(geneTree)
+        gn_tree_obj = TreeClass(geneTree)
 
         # Contract low support branches
         if gn_contract_branches:
@@ -93,8 +94,8 @@ def webplugin_app(environ, start_response, queries):
 
         # Correct Paralogy Prep
         if correct_paralogy:
-            gn_tree_obj.set_species(sep="%%")
-            gn_tree_obj.set_genes(sep="%%", pos="prefix")
+            gn_tree_obj.set_species(sep=separator)
+            gn_tree_obj.set_genes(sep=separator, pos="prefix")
 
             # Get gene/species mapping as list of tuples
             gn_sp_mapping = []
@@ -140,7 +141,7 @@ def webplugin_app(environ, start_response, queries):
                     if paralogy_corrected:
                         tree = TreeClass(paralogy_corrected)
 
-                tree.set_genes(sep="%%",pos="prefix")
+                tree.set_genes(sep=separator, pos="prefix")
 
                 lcamap = TreeUtils.lcaMapping(tree, speciesTree_obj)
 
@@ -169,8 +170,13 @@ def webplugin_app(environ, start_response, queries):
                             </script>"""%treeid + """<select id="select_trees_dropdown">"""
 
             for tree in trees_processed:
-                value = json.dumps({"newick":tree.write(features=[]),"log-likelihood":tree.log_likelihood, "cost":tree.cost})
-                trees_dropdown += "<option value='%s'>Tree %d (Log-likelihood : %s) (Cost : %d)</option>"%(value,tree.tree_number,tree.log_likelihood, tree.cost)
+                # TODO : Fix this! ParalogySolver does not support NHX and therefore loses the cost parameter...
+                if correct_paralogy:
+                    value = json.dumps({"newick":tree.write(features=[]),"log-likelihood":tree.log_likelihood })
+                    trees_dropdown += "<option value='%s'>Tree %d (Log-likelihood : %s) </option>"%(value,tree.tree_number,tree.log_likelihood )
+                else:
+                    value = json.dumps({"newick":tree.write(features=[]),"log-likelihood":tree.log_likelihood, "cost":tree.cost})
+                    trees_dropdown += "<option value='%s'>Tree %d (Log-likelihood : %s) (Cost : %d)</option>"%(value,tree.tree_number,tree.log_likelihood, tree.cost)
             trees_dropdown += '</select>'
 
             return trees_dropdown
@@ -253,6 +259,9 @@ def preprocess_seqs_and_distmat(seq_align, seq_calculate_dm, seq_data_type, seq_
 def polytomy_solver(geneTree, speciesTree, distances, reroot_mode, sol_limit, path_limit, cluster_method, mval):
     gene_tree, species_tree, distance_matrix, node_order = TreeUtils.polySolverPreprocessing(geneTree, speciesTree, distances)
     tree_list=[gene_tree]
+
+    print >> sys.stderr, gene_tree
+    print >> sys.stderr, species_tree
 
     if reroot_mode == 'outputallroots':
 	tree_list.extend(gene_tree.reroot())
