@@ -91,64 +91,76 @@ def webplugin_app(environ, start_response, queries):
 
         speciesTree_obj = TreeClass(speciesTree)
 
-        # Only correct paralogy
-        if correct_paralogy and not solve_polytomy:
-            # geneTree_obj = TreeClass(geneTree)
-            geneTree_obj = gn_tree_obj
-            geneTree_obj.set_species(sep="%%")
-            geneTree_obj.set_genes(sep="%%", pos="prefix")
+        # Correct Paralogy Prep
+        if correct_paralogy:
+            gn_tree_obj.set_species(sep="%%")
+            gn_tree_obj.set_genes(sep="%%", pos="prefix")
 
             # Get gene/species mapping as list of tuples
             gn_sp_mapping = []
-            for node in geneTree_obj.get_leaves():
+            for node in gn_tree_obj.get_leaves():
                 gn_sp_mapping.append((node.genes+";;"+node.get_species()[0],node.get_species()[0]))
-            print >> sys.stderr, gn_sp_mapping
 
             # Build list of tuples from user supplied orthologs
             orthologs = strlol2lot(pc_orthologs)
 
-            # Run Paralogy Corrector
+        # ParalogyCorrector only
+        if correct_paralogy and not solve_polytomy:
             paralogy_corrected = ParalogyCorrector(geneTree, speciesTree, gn_sp_mapping, orthologs)
-
-        # Preprocess sequences and distance matrix (conversion with SeqIO / alignment and distance matrix calculation with ClustalO)
-        geneSeq_file_path = preprocess_seqs_and_distmat(seq_align, seq_calculate_dm, seq_data_type, seq_format, geneSeq, treeid)
-
-        # PolytomySolver v1.2.5
-        # PolytomySolver(string speciesTreeString, string geneTreeString, string strDistances, string _rerootMode, bool _testEdgeRoots, bool _hasNonnegativeDistanceFlag, bool _useCache)
-        if gn_reroot_mode in ["none","findbestroot","outputallroots"]:
-            polytomysolver_out = polytomy_solver(gn_tree_obj.write(), speciesTree, geneDistances, gn_reroot_mode, int(poly_sol_limit), int(poly_path_limit), 'upgma', 1e305)
-        else:
-            start_response(wsgiref.handlers.BaseCGIHandler.error_status, wsgiref.handlers.BaseHandler.error_headers, sys.exc_info())
-            return 'Error : Unknown PolytomySolver Reroot Mode'
-
-        trees_mapped_reconciled = []
-
-        # Parse list of trees
-        for tree in polytomysolver_out:
-            #tree.set_species(sep="__",pos="postfix")
-            tree.set_genes(sep="%%",pos="prefix")
-
-            lcamap = TreeUtils.lcaMapping(tree, speciesTree_obj)
-
-            # Reconcile gene and species tree
-            TreeUtils.reconcile(tree, lcamap)
-            trees_mapped_reconciled.append(tree)
-
-            if not application._load_tree(treeid, tree):
+            if paralogy_corrected:
+                tree = TreeClass(paralogy_corrected)
+                if not application._load_tree(treeid, tree):
+                    start_response(wsgiref.handlers.BaseCGIHandler.error_status, wsgiref.handlers.BaseHandler.error_headers, sys.exc_info())
+                    return 'Error : Cannot load the tree: %s' %treeid
+                return application._custom_tree_renderer(tree, treeid, application)
+            else:
                 start_response(wsgiref.handlers.BaseCGIHandler.error_status, wsgiref.handlers.BaseHandler.error_headers, sys.exc_info())
-                return 'Error : Cannot load the tree: %s' %treeid
+                return 'Error : Nothing to correct'
 
-        # Small nexus format fixes for PhyML
-        nexus_repair(geneSeq_file_path)
+        # PolytomySolver or Both
+        elif solve_polytomy:
+            # Preprocess sequences and distance matrix (conversion with SeqIO / alignment and distance matrix calculation with ClustalO)
+            geneSeq_file_path = preprocess_seqs_and_distmat(seq_align, seq_calculate_dm, seq_data_type, seq_format, geneSeq, treeid)
 
-        # Calculate log-likelihood with PhyML
-        trees_processed = phyml(geneSeq_file_path, trees_mapped_reconciled, treeid)
+            # PolytomySolver v1.2.5
+            # PolytomySolver(string speciesTreeString, string geneTreeString, string strDistances, string _rerootMode, bool _testEdgeRoots, bool _hasNonnegativeDistanceFlag, bool _useCache)
+            if gn_reroot_mode in ["none","findbestroot","outputallroots"]:
+                try:
+                    polytomysolver_out = polytomy_solver(gn_tree_obj.write(), speciesTree, geneDistances, gn_reroot_mode, int(poly_sol_limit), int(poly_path_limit), 'upgma', 1e305)
+                except Exception, e:
+                    start_response(wsgiref.handlers.BaseCGIHandler.error_status, wsgiref.handlers.BaseHandler.error_headers, sys.exc_info())
+                    return 'Error : ' + str(e)
 
-        # Sort in order of log-likelihood
-        trees_processed.sort(key=lambda x: x.log_likelihood)
+            trees_mapped_reconciled = []
 
-        # Dropdown for all trees
-        trees_dropdown ="""<script>$("#select_trees_dropdown").on("change", function(){
+            # Parse list of trees
+            for tree in polytomysolver_out:
+                if correct_paralogy:
+                    paralogy_corrected = ParalogyCorrector(tree.write(), speciesTree, gn_sp_mapping, orthologs)
+                    if paralogy_corrected:
+                        tree = TreeClass(paralogy_corrected)
+
+                tree.set_genes(sep="%%",pos="prefix")
+
+                lcamap = TreeUtils.lcaMapping(tree, speciesTree_obj)
+
+                # Reconcile gene and species tree
+                TreeUtils.reconcile(tree, lcamap)
+                trees_mapped_reconciled.append(tree)
+
+                if not application._load_tree(treeid, tree):
+                    start_response(wsgiref.handlers.BaseCGIHandler.error_status, wsgiref.handlers.BaseHandler.error_headers, sys.exc_info())
+                    return 'Error : Cannot load the tree: %s' %treeid
+
+            # Small nexus format fixes for PhyML
+            nexus_repair(geneSeq_file_path)
+
+            # Calculate log-likelihood with PhyML and sort in order of log-likelihood
+            trees_processed = phyml(geneSeq_file_path, trees_mapped_reconciled, treeid)
+            trees_processed.sort(key=lambda x: x.log_likelihood)
+
+            # Dropdown for all trees
+            trees_dropdown ="""<script>$("#select_trees_dropdown").on("change", function(){
                             var sel = document.getElementById("select_trees_dropdown");
                             var selected_value = sel.options[sel.selectedIndex].value;
                             var selected_value_json = JSON.parse(selected_value);
@@ -156,13 +168,12 @@ def webplugin_app(environ, start_response, queries):
                             $(document).ready(function() { $('#select_trees_dropdown').trigger("change");});
                             </script>"""%treeid + """<select id="select_trees_dropdown">"""
 
-        for tree in trees_processed:
-            value = json.dumps({"newick":tree.write(features=[]),"log-likelihood":tree.log_likelihood, "cost":tree.cost})
-            trees_dropdown += "<option value='%s'>Tree %d (Log-likelihood : %s) (Cost : %d)</option>"%(value,tree.tree_number,tree.log_likelihood, tree.cost)
-        trees_dropdown += '</select>'
+            for tree in trees_processed:
+                value = json.dumps({"newick":tree.write(features=[]),"log-likelihood":tree.log_likelihood, "cost":tree.cost})
+                trees_dropdown += "<option value='%s'>Tree %d (Log-likelihood : %s) (Cost : %d)</option>"%(value,tree.tree_number,tree.log_likelihood, tree.cost)
+            trees_dropdown += '</select>'
 
-        return trees_dropdown
-
+            return trees_dropdown
 
 # ==============================================================================
 # Misc helper functions
