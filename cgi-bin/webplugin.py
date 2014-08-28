@@ -120,7 +120,7 @@ def webplugin_app(environ, start_response, queries):
         # PolytomySolver or Both
         elif solve_polytomy:
             # Preprocess sequences and distance matrix (conversion with SeqIO / alignment and distance matrix calculation with ClustalO)
-            geneSeq_file_path = preprocess_seqs_and_distmat(seq_align, seq_calculate_dm, seq_data_type, seq_format, geneSeq, treeid)
+            geneSeq_file_path, geneDistances = preprocess_seqs_and_distmat(seq_align, seq_calculate_dm, seq_data_type, seq_format, geneSeq, geneDistances, treeid)
 
             # PolytomySolver v1.2.5
             # PolytomySolver(string speciesTreeString, string geneTreeString, string strDistances, string _rerootMode, bool _testEdgeRoots, bool _hasNonnegativeDistanceFlag, bool _useCache)
@@ -200,7 +200,7 @@ def convert(in_file, in_format, out_format, treeid, seq_data_type):
 
 # Bulk of the ClustalO/PhyML pipeline
 # Handles alignment, distance matrix calculation and file conversion
-def preprocess_seqs_and_distmat(seq_align, seq_calculate_dm, seq_data_type, seq_format, geneSeq, treeid):
+def preprocess_seqs_and_distmat(seq_align, seq_calculate_dm, seq_data_type, seq_format, geneSeq, geneDistances, treeid):
 
     # Prep output paths
     alignment_path = TMP_UTILS_PATH + treeid + ".aln"
@@ -247,11 +247,10 @@ def preprocess_seqs_and_distmat(seq_align, seq_calculate_dm, seq_data_type, seq_
         if seq_format == "fasta":
             geneSeq_file_path = convert(geneSeq_file_path, "fasta", "nexus", treeid, seq_data_type)
 
-    return geneSeq_file_path
+    return geneSeq_file_path, geneDistances
 
 # PolytomySolver simplified wrapper
 def polytomy_solver(geneTree, speciesTree, distances, reroot_mode, sol_limit, path_limit, cluster_method, mval):
-
     gene_tree, species_tree, distance_matrix, node_order = TreeUtils.polySolverPreprocessing(geneTree, speciesTree, distances)
     tree_list=[gene_tree]
 
