@@ -87,9 +87,14 @@ function show_context_menu(treeid, nodeid, actions, textface){
 	if ( textface==undefined ){
 		var textface = "";
 	}
-	var params = {"treeid": treeid, "show_actions": actions, "nid": nodeid, "textface": textface};
-	$("#popup").html(loading_img);
-	$('#popup').load(ete_webplugin_URL+'/get_menu', params);
+    if (nodeid) {
+        $("#popup").show();
+	    var params = {"treeid": treeid, "show_actions": actions, "nid": nodeid, "textface": textface};
+	    $("#popup").html(loading_img);
+	    $('#popup').load(ete_webplugin_URL+'/get_menu', params);
+    } else {
+        hide_popup();
+    }
 }
 
 function run_action(treeid, nodeid, aindex, search_term){
@@ -141,12 +146,12 @@ function bind_popup(){
 			$("#popup").css('position',"absolute" );
 			$("#popup").css('background-color',"#fff" );
 			$("#popup").draggable({ cancel: 'span,li' });
-			$("#popup").show();
+			// $("#popup").show();
 			});
 }
 
 function hide_popup(){
-	$('#popup').hide();
+	$("#popup").hide();
 }
 
 function search_in_tree(treeid, search_index_action, search_term, term_target){

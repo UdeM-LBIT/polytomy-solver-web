@@ -132,7 +132,7 @@ var ete_webplugin_URL = "cgi-bin/webplugin.py"
     <input type='submit'  value='Draw tree'  onClick='$("#img1").empty();polytomysolver(random_tid(), $("#speciesTree").val(),$("#geneTree").val() ,$("#geneDistances").val(), $("#geneSeq").val(),"name", $("#sp_tol:checked").length,$("#gn_ensembl").val(),$("#gn_reroot_mode option:selected").val(),$("#gn_support_threshold").val(),$("#gn_contract_branches:checked").length,$("#seq_format option:selected").val(),$("#seq_align:checked").length,$("#seq_data_type option:selected").val(),$("#seq_calculate_dm:checked").length,get_orthologs(), $("#correct_paralogy:checked").length, $("#solve_polytomy:checked").length,$("#poly_sol_limit").val(),$("#poly_path_limit").val(), "#polytomysolver_dropdown");'>
 
 
-    <input type='button' value='Clear' onClick='$(".ete_image").html("");'>
+    <input type='button' value='Clear' onClick='$(".ete_image").empty();'>
 </div>
     </div>
     <br>
